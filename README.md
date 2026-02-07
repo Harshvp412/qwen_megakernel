@@ -1,6 +1,6 @@
 ## Qwen 0.6B Megakernel for RTX 5090
 
-This megakernel is aggressively optimized for Qwen3-0.6B shapes to be run on an RTX 5090. It still needs a lot of work, and is only really fast in specific scenarios.
+This megakernel is aggressively optimized for Qwen3-0.6B (bf16) shapes to be run on an RTX 5090. It still needs a lot of work, and is only really fast in specific scenarios.
 
 
 | Backend      | tok/s | ms/tok | Speedup |
