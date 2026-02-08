@@ -2276,14 +2276,13 @@ ldg_decode_kernel_persistent(
     int block_id = blockIdx.x;
     int num_blocks = gridDim.x;
 
-    // Reset barrier counters + flags on-device (avoids host cudaMemsetAsync)
+    // Reset barrier counters + flags on-device
     if (block_id == 0 && threadIdx.x == 0) {
         *barrier_counter = 0;
         *barrier_sense = 0;
         atomicExch(kv_flag, 0u);
         atomicExch(attn_flag, 0u);
     }
-    // All blocks must see the reset before proceeding
     __syncthreads();
     if (threadIdx.x == 0) {
         asm volatile("fence.acq_rel.gpu;" ::: "memory");
@@ -2296,19 +2295,14 @@ ldg_decode_kernel_persistent(
             volatile unsigned int* vg = (volatile unsigned int*)barrier_sense;
             while (*vg == 0) {}
         }
-        // Acquire fence: ensure all of block 0's resets (flags, counters) are visible
         asm volatile("fence.acq_rel.gpu;" ::: "memory");
     }
     __syncthreads();
 
     AtomicGridSync grid{barrier_counter, barrier_sense, (unsigned int)gridDim.x, 1};
 
-    // Embedding lookup
+    // First layer reads embed row directly (no separate embed + barrier needed)
     const __nv_bfloat16* embed_row = embed_weight + input_token_id * HIDDEN_SIZE;
-    for (int i = block_id * LDG_BLOCK_SIZE + threadIdx.x; i < HIDDEN_SIZE; i += num_blocks * LDG_BLOCK_SIZE) {
-        hidden_buffer[i] = __ldg(embed_row + i);
-    }
-    grid.sync();
 
     int kv_cache_layer_stride = NUM_KV_HEADS * max_seq_len * HEAD_DIM;
 
@@ -2317,7 +2311,10 @@ ldg_decode_kernel_persistent(
         __nv_bfloat16* layer_k_cache = k_cache + layer * kv_cache_layer_stride;
         __nv_bfloat16* layer_v_cache = v_cache + layer * kv_cache_layer_stride;
 
-        ldg_matvec_qkv(grid, hidden_buffer, w.input_layernorm_weight,
+        // Layer 0: read directly from embedding table. Other layers: from hidden_buffer.
+        const __nv_bfloat16* layer_input = (layer == 0) ? embed_row : hidden_buffer;
+
+        ldg_matvec_qkv(grid, layer_input, w.input_layernorm_weight,
             w.q_proj_weight, w.k_proj_weight, w.v_proj_weight,
             g_activations, g_residual, g_q, g_k, g_v);
 
@@ -2412,7 +2409,7 @@ extern "C" void launch_ldg_decode_persistent(
     ldg_configure_kernel_attributes();
     ensure_barrier_alloc();
 
-    // Write mutable params via pinned host memory (CUDA graph compatible)
+    // Write mutable params via pinned host memory (barriers reset on-device)
     *h_pinned_position = position;
     *h_pinned_token_id = input_token_id;
     cudaMemcpyAsync(d_mutable_position, h_pinned_position, sizeof(int), cudaMemcpyHostToDevice, stream);
