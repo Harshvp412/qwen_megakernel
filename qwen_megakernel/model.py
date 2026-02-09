@@ -54,11 +54,12 @@ def load_weights(model_name="Qwen/Qwen3-0.6B"):
             state[p + "mlp.down_proj.weight"].contiguous(),
         ])
 
+    embed_weight = state["model.embed_tokens.weight"].contiguous()
     weights = dict(
-        embed_weight=state["model.embed_tokens.weight"].contiguous(),
+        embed_weight=embed_weight,
         layer_weights=layer_weights,
         final_norm_weight=state["model.norm.weight"].contiguous(),
-        lm_head_weight=state["lm_head.weight"].contiguous(),
+        lm_head_weight=embed_weight,  # tied embeddings
         cos_table=cos_table,
         sin_table=sin_table,
     )
