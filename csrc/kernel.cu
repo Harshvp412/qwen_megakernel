@@ -1227,7 +1227,7 @@ static inline void ldg_configure_kernel_attributes() {
   configured = true;
   cudaFuncSetAttribute(ldg_decode_kernel_persistent,
                        cudaFuncAttributePreferredSharedMemoryCarveout,
-                       cudaSharedmemCarveoutMaxL1);
+                       cudaSharedmemCarveoutMaxShared);
   cudaFuncSetAttribute(ldg_lm_head_phase1,
                        cudaFuncAttributePreferredSharedMemoryCarveout,
                        cudaSharedmemCarveoutMaxL1);

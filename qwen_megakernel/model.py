@@ -10,19 +10,40 @@ NUM_KV_HEADS = 8
 HEAD_DIM = 128
 HIDDEN_SIZE = 1024
 INTERMEDIATE_SIZE = 3072
-Q_SIZE = 16 * HEAD_DIM      # 2048
-KV_SIZE = 8 * HEAD_DIM      # 1024
+Q_SIZE = 16 * HEAD_DIM  # 2048
+KV_SIZE = 8 * HEAD_DIM  # 1024
 MAX_SEQ_LEN = 2048
 VOCAB_SIZE = 151936
 
 _decode = torch.ops.qwen_megakernel_C.decode
 
 
-def load_weights(model_name="Qwen/Qwen3-0.6B"):
+def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
     """Load Qwen3-0.6B weights from HuggingFace into GPU tensors."""
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    if not verbose:
+        import os
 
-    print(f"Loading {model_name}...")
+        os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+        os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
+
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers.utils import logging as hf_logging
+
+    if not verbose:
+        hf_logging.set_verbosity_error()
+        try:
+            hf_logging.disable_progress_bar()
+        except AttributeError:
+            pass
+        try:
+            from huggingface_hub import logging as hf_hub_logging
+
+            hf_hub_logging.set_verbosity_error()
+        except Exception:
+            pass
+
+    if verbose:
+        print(f"Loading {model_name}...")
     model = AutoModelForCausalLM.from_pretrained(
         model_name, dtype=torch.bfloat16, device_map="cuda"
     )
@@ -30,7 +51,9 @@ def load_weights(model_name="Qwen/Qwen3-0.6B"):
     state = model.state_dict()
 
     # RoPE tables
-    inv_freq = 1.0 / (10000.0 ** (torch.arange(0, HEAD_DIM, 2, dtype=torch.float32) / HEAD_DIM))
+    inv_freq = 1.0 / (
+        10000.0 ** (torch.arange(0, HEAD_DIM, 2, dtype=torch.float32) / HEAD_DIM)
+    )
     positions = torch.arange(MAX_SEQ_LEN, dtype=torch.float32)
     freqs = torch.outer(positions, inv_freq)
     cos_table = torch.cos(freqs).repeat(1, 2).to(torch.bfloat16).cuda().contiguous()
@@ -40,19 +63,21 @@ def load_weights(model_name="Qwen/Qwen3-0.6B"):
     layer_weights = []
     for i in range(NUM_LAYERS):
         p = f"model.layers.{i}."
-        layer_weights.extend([
-            state[p + "input_layernorm.weight"].contiguous(),
-            state[p + "self_attn.q_proj.weight"].contiguous(),
-            state[p + "self_attn.k_proj.weight"].contiguous(),
-            state[p + "self_attn.v_proj.weight"].contiguous(),
-            state[p + "self_attn.q_norm.weight"].contiguous(),
-            state[p + "self_attn.k_norm.weight"].contiguous(),
-            state[p + "self_attn.o_proj.weight"].contiguous(),
-            state[p + "post_attention_layernorm.weight"].contiguous(),
-            state[p + "mlp.gate_proj.weight"].contiguous(),
-            state[p + "mlp.up_proj.weight"].contiguous(),
-            state[p + "mlp.down_proj.weight"].contiguous(),
-        ])
+        layer_weights.extend(
+            [
+                state[p + "input_layernorm.weight"].contiguous(),
+                state[p + "self_attn.q_proj.weight"].contiguous(),
+                state[p + "self_attn.k_proj.weight"].contiguous(),
+                state[p + "self_attn.v_proj.weight"].contiguous(),
+                state[p + "self_attn.q_norm.weight"].contiguous(),
+                state[p + "self_attn.k_norm.weight"].contiguous(),
+                state[p + "self_attn.o_proj.weight"].contiguous(),
+                state[p + "post_attention_layernorm.weight"].contiguous(),
+                state[p + "mlp.gate_proj.weight"].contiguous(),
+                state[p + "mlp.up_proj.weight"].contiguous(),
+                state[p + "mlp.down_proj.weight"].contiguous(),
+            ]
+        )
 
     embed_weight = state["model.embed_tokens.weight"].contiguous()
     weights = dict(
@@ -86,9 +111,15 @@ def _pack_layer_weights(layer_weights: list[torch.Tensor]) -> torch.Tensor:
 class Decoder:
     """Stateful decoder wrapping the Qwen Megakernel torch ops."""
 
-    def __init__(self, weights=None, tokenizer=None, model_name="Qwen/Qwen3-0.6B"):
+    def __init__(
+        self,
+        weights=None,
+        tokenizer=None,
+        model_name="Qwen/Qwen3-0.6B",
+        verbose: bool = True,
+    ):
         if weights is None:
-            weights, tokenizer = load_weights(model_name)
+            weights, tokenizer = load_weights(model_name, verbose=verbose)
         self.tokenizer = tokenizer
         self._position = 0
 
@@ -107,22 +138,27 @@ class Decoder:
 
         # KV cache
         self._k_cache = torch.zeros(
-            NUM_LAYERS, NUM_KV_HEADS, MAX_SEQ_LEN, HEAD_DIM,
-            dtype=torch.bfloat16, device="cuda")
+            NUM_LAYERS,
+            NUM_KV_HEADS,
+            MAX_SEQ_LEN,
+            HEAD_DIM,
+            dtype=torch.bfloat16,
+            device="cuda",
+        )
         self._v_cache = torch.zeros_like(self._k_cache)
 
         # Scratch buffers (single-token decode)
         f32 = dict(dtype=torch.float32, device="cuda")
         bf16 = dict(dtype=torch.bfloat16, device="cuda")
-        self._hidden    = torch.empty(HIDDEN_SIZE, **bf16)
-        self._act       = torch.empty(HIDDEN_SIZE, **f32)
-        self._res       = torch.empty(HIDDEN_SIZE, **f32)
-        self._q         = torch.empty(Q_SIZE, **f32)
-        self._k         = torch.empty(KV_SIZE, **f32)
-        self._v         = torch.empty(KV_SIZE, **f32)
-        self._attn_out  = torch.empty(Q_SIZE, **f32)
+        self._hidden = torch.empty(HIDDEN_SIZE, **bf16)
+        self._act = torch.empty(HIDDEN_SIZE, **f32)
+        self._res = torch.empty(HIDDEN_SIZE, **f32)
+        self._q = torch.empty(Q_SIZE, **f32)
+        self._k = torch.empty(KV_SIZE, **f32)
+        self._v = torch.empty(KV_SIZE, **f32)
+        self._attn_out = torch.empty(Q_SIZE, **f32)
         self._mlp_inter = torch.empty(INTERMEDIATE_SIZE, **f32)
-        self._norm_out  = torch.empty(HIDDEN_SIZE, **f32)
+        self._norm_out = torch.empty(HIDDEN_SIZE, **f32)
         self._bmax_vals = torch.empty(4096, **f32)
         self._bmax_idxs = torch.empty(4096, dtype=torch.int32, device="cuda")
         self._out_token = torch.empty(1, dtype=torch.int32, device="cuda")
@@ -130,16 +166,31 @@ class Decoder:
     def step(self, token_id: int) -> int:
         """Decode one token. Returns the next token id."""
         _decode(
-            self._out_token, token_id,
-            self._embed_weight, self._layer_weights_packed,
-            self._final_norm_weight, self._lm_head_weight,
-            self._cos_table, self._sin_table,
-            self._k_cache, self._v_cache,
-            self._hidden, self._act, self._res,
-            self._q, self._k, self._v, self._attn_out,
-            self._mlp_inter, self._norm_out,
-            self._bmax_vals, self._bmax_idxs,
-            NUM_LAYERS, self._position, MAX_SEQ_LEN, self._attn_scale,
+            self._out_token,
+            token_id,
+            self._embed_weight,
+            self._layer_weights_packed,
+            self._final_norm_weight,
+            self._lm_head_weight,
+            self._cos_table,
+            self._sin_table,
+            self._k_cache,
+            self._v_cache,
+            self._hidden,
+            self._act,
+            self._res,
+            self._q,
+            self._k,
+            self._v,
+            self._attn_out,
+            self._mlp_inter,
+            self._norm_out,
+            self._bmax_vals,
+            self._bmax_idxs,
+            NUM_LAYERS,
+            self._position,
+            MAX_SEQ_LEN,
+            self._attn_scale,
         )
         self._position += 1
         return self._out_token.item()
@@ -160,25 +211,40 @@ class Decoder:
             self.step(tid)
         _gen = torch.ops.qwen_megakernel_C.generate_nosync
         output_ids = _gen(
-            ids[-1], max_tokens,
-            self._embed_weight, self._layer_weights_packed,
-            self._final_norm_weight, self._lm_head_weight,
-            self._cos_table, self._sin_table,
-            self._k_cache, self._v_cache,
-            self._hidden, self._act, self._res,
-            self._q, self._k, self._v, self._attn_out,
-            self._mlp_inter, self._norm_out,
-            self._bmax_vals, self._bmax_idxs,
-            NUM_LAYERS, self._position, MAX_SEQ_LEN, self._attn_scale,
+            ids[-1],
+            max_tokens,
+            self._embed_weight,
+            self._layer_weights_packed,
+            self._final_norm_weight,
+            self._lm_head_weight,
+            self._cos_table,
+            self._sin_table,
+            self._k_cache,
+            self._v_cache,
+            self._hidden,
+            self._act,
+            self._res,
+            self._q,
+            self._k,
+            self._v,
+            self._attn_out,
+            self._mlp_inter,
+            self._norm_out,
+            self._bmax_vals,
+            self._bmax_idxs,
+            NUM_LAYERS,
+            self._position,
+            MAX_SEQ_LEN,
+            self._attn_scale,
         )
         self._position += max_tokens
         out = output_ids.cpu().tolist()
         eos = self.tokenizer.eos_token_id
         if eos in out:
-            out = out[:out.index(eos)]
+            out = out[: out.index(eos)]
         return self.tokenizer.decode(out, skip_special_tokens=True)
 
 
-def generate(prompt: str, max_tokens: int = 100) -> str:
+def generate(prompt: str, max_tokens: int = 100, verbose: bool = True) -> str:
     """One-shot convenience: load model, generate, return text."""
-    return Decoder().generate(prompt, max_tokens)
+    return Decoder(verbose=verbose).generate(prompt, max_tokens)

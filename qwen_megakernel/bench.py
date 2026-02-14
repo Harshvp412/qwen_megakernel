@@ -27,7 +27,10 @@ def bench_pytorch_hf():
     def run():
         with torch.no_grad():
             model.generate(
-                input_ids, max_new_tokens=TOKENS, do_sample=False, use_cache=True,
+                input_ids,
+                max_new_tokens=TOKENS,
+                do_sample=False,
+                use_cache=True,
                 pad_token_id=tokenizer.pad_token_id,
             )
 
@@ -53,7 +56,7 @@ def bench_pytorch_hf():
 def bench_megakernel():
     from qwen_megakernel.model import Decoder
 
-    dec = Decoder()
+    dec = Decoder(verbose=False)
 
     def run():
         dec.reset()

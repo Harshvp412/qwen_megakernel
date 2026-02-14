@@ -12,7 +12,7 @@ KERNEL_FLAGS = [
     "-DLDG_NUM_BLOCKS=128",
     "-DLDG_BLOCK_SIZE=512",
     "-DLDG_LM_NUM_BLOCKS=1184",
-    "-DLDG_LM_BLOCK_SIZE=256",
+    "-DLDG_LM_BLOCK_SIZE=384",
     "-DLDG_LM_ROWS_PER_WARP=2",
     "-DLDG_USE_UINT4",
     "-DLDG_ATTENTION_VEC4",
@@ -21,7 +21,10 @@ KERNEL_FLAGS = [
 ]
 
 CUDA_FLAGS = [
-    "-O3", "--use_fast_math", "-std=c++17", "--expt-relaxed-constexpr",
+    "-O3",
+    "--use_fast_math",
+    "-std=c++17",
+    "--expt-relaxed-constexpr",
     "-arch=sm_120a",
     f"-I{_CSRC}",
 ] + KERNEL_FLAGS
