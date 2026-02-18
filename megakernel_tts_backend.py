@@ -135,19 +135,21 @@ class MegakernelTalkerBackend:
         self._ensure_loaded()
         import numpy as np
 
-        # 12Hz tokenizer expects num_quantizers layers (e.g. 16); megakernel produces one (semantic) codebook.
-        # Put our codes in layer 0 only; fill other layers with 0 to avoid out-of-range CUDA asserts
-        # (each layer has its own codebook; replicating our IDs to all layers can be invalid).
+        # 12Hz tokenizer: 16 layers, 2048 entries per codebook (indices 0..2047). Megakernel outputs one
+        # (semantic) codebook but vocab size can be 3072 → clamp to 2047 to avoid scatter/gather OOB.
         num_layers = 16
+        codebook_size = 2048
         try:
             dec = getattr(self._speech_tokenizer, "model", None) and getattr(
                 self._speech_tokenizer.model, "decoder", None
             )
             if dec is not None and hasattr(dec, "config"):
                 num_layers = getattr(dec.config, "num_quantizers", num_layers)
+                codebook_size = getattr(dec.config, "codebook_size", codebook_size)
         except Exception:
             pass
         codes = np.array(codec_token_ids, dtype=np.int64)
+        codes = np.clip(codes, 0, codebook_size - 1)
         if codes.ndim == 1:
             codes = np.expand_dims(codes, axis=1)
         if codes.shape[1] != num_layers:
