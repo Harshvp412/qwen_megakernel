@@ -226,8 +226,18 @@ def main(ref_path: Path, model_name: str) -> int:
                     print("   → Likely cause: Numerical precision or specific token edge case")
             
             print(f"\n🔧 FIX CHECKLIST:")
-            print(f"   1. Verify RoPE theta matches: model.config.rope_theta = {dec._cos_table.shape[0] // 128}")
-            print(f"   2. Check position counter: dec.position = {dec.position} (expected: {len(prompt_ids) + max_tokens})")
+            # Get actual rope_theta from model config
+            try:
+                from transformers import AutoConfig
+                config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+                rope_theta = float(getattr(config, "rope_theta", 10000.0))
+                print(f"   1. Verify RoPE theta: config.rope_theta = {rope_theta} (used in kernel)")
+            except Exception:
+                print(f"   1. Verify RoPE theta: check model.py load_weights() uses config.rope_theta")
+            expected_pos = len(prompt_ids) - 1 + max_tokens  # -1 because we prefill (len-1) tokens
+            print(f"   2. Check position counter: dec.position = {dec.position} (expected: {expected_pos})")
+            if dec.position != expected_pos:
+                print(f"      ⚠️  Position counter mismatch — may indicate off-by-one bug")
             print(f"   3. Verify KV cache shape: {dec._k_cache.shape} (expected: [28, 8, 2048, 128])")
             print(f"   4. Check hidden state: mean={dec._hidden.abs().mean().item():.6f}, std={dec._hidden.std().item():.6f}")
             if dec._hidden.abs().mean().item() < 0.001:
