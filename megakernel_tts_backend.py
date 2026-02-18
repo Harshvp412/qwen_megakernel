@@ -180,28 +180,36 @@ class MegakernelTalkerBackend:
         chunk_size_samples: int = 16000,
         max_new_tokens: int = 2048,
         codec_chunk_frames: int = 12,
+        first_chunk_frames: Optional[int] = None,
     ) -> Iterable[Tuple[torch.Tensor, int]]:
         """
         Generate audio from text using megakernel as talker decoder.
-        Streams by decoding codec tokens in small chunks (~12 frames ≈ 1 s at 12.5 Hz)
-        and yielding audio as soon as each chunk is decoded (no full-utterance buffer).
+        Streams by decoding codec tokens in chunks and yielding audio as soon as each
+        chunk is decoded. Uses a smaller first chunk to reduce TTFC (time to first chunk):
+        first_chunk_frames (default 2) for the first yield, then codec_chunk_frames.
+        Run profile_codec_decode.py to pick first_chunk_frames so decode latency < 90 ms.
         """
         self._ensure_loaded()
+        if first_chunk_frames is None:
+            first_chunk_frames = min(2, codec_chunk_frames)
         prompt_ids = self.build_prompt_ids(text=text, language=language, speaker=speaker)
         if not prompt_ids:
             prompt_ids = [getattr(self._talker_config, "codec_bos_id", 0)]
         buffer: List[int] = []
+        first_yield = True
         for token_id in self.generate_codec_tokens(
             prompt_ids,
             max_new_tokens=max_new_tokens,
             stop_on_eos=True,
         ):
             buffer.append(token_id)
-            if len(buffer) >= codec_chunk_frames:
+            threshold = first_chunk_frames if first_yield else codec_chunk_frames
+            if len(buffer) >= threshold:
                 wav_chunk, sr = self.codec_tokens_to_audio(buffer)
                 if wav_chunk.shape[0] > 0:
                     yield wav_chunk, sr
                 buffer = []
+                first_yield = False
         if buffer:
             wav_chunk, sr = self.codec_tokens_to_audio(buffer)
             if wav_chunk.shape[0] > 0:

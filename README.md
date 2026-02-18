@@ -154,7 +154,7 @@ python test_step4_pipeline.py
 | Check                | Expected                                                                       |
 | -------------------- | ------------------------------------------------------------------------------ |
 | Step 2.1 Streaming   | PASS (tokens stream correctly)                                                 |
-| Step 2.2 TTS Backend | PASS when audio generated; **RTF < 0.3 achieved** with MegakernelTalkerBackend (e.g. ~0.23). TTFC target &lt;90ms still requires streaming. |
+| Step 2.2 TTS Backend | PASS when audio generated; **RTF < 0.3** (e.g. ~0.23). **TTFC < 90 ms:** run `python profile_codec_decode.py` then `python test_megakernel_tts_backend.py --first-chunk-frames 1` (or 2) so first codec decode is small. |
 | Step 2.3 Tok/s       | ≥ 500 (target ~1000)                                                           |
 | Step 3 Pipecat TTS   | PASS (if pipecat + qwen-tts)                                                   |
 
@@ -183,7 +183,7 @@ Open the URL printed (e.g. WebRTC client), connect, and talk. Pipeline: Deepgram
 
 **Known limitations**
 
-- **Parity:** First-token mismatch vs HuggingFace is documented; cause is in CUDA kernel (RoPE/attention), not Python. Decoder is still usable.
+- **Parity:** On the same machine, HF `generate()` and megakernel match (see `compare_hf_generate_vs_mk.py`). Regenerate `parity_reference_output.json` on the target machine for `compare_tokens.py`.
 - **transformers version:** Pinned to `4.57.3` so `qwen-tts` installs in the same env; model loading uses `torch_dtype=` for compatibility.
 - **Streaming TTS:** Current TTS path generates full utterance then chunks; true streaming (token-by-token to audio) is not wired yet.
 

@@ -6,7 +6,8 @@ Verifies streaming (TTFC = time to first chunk) and RTF.
 Run on a machine with GPU + qwen-tts + megakernel built:
   python test_megakernel_tts_backend.py
   python test_megakernel_tts_backend.py --wav out.wav
-  python test_megakernel_tts_backend.py --codec-chunk-frames 6   # smaller chunks = lower TTFC
+  python test_megakernel_tts_backend.py --codec-chunk-frames 6 --first-chunk-frames 2
+  python profile_codec_decode.py   # find smallest first_chunk_frames with decode < 90 ms
 """
 
 import argparse
@@ -19,7 +20,8 @@ def main():
     parser.add_argument("--wav", type=str, default=None, help="If set, write all chunks to this WAV file.")
     parser.add_argument("--text", type=str, default="Hello.", help="Text to synthesize.")
     parser.add_argument("--language", type=str, default="English")
-    parser.add_argument("--codec-chunk-frames", type=int, default=12, help="Codec frames per decode (default 12 ≈ 1 s). Smaller = lower TTFC.")
+    parser.add_argument("--codec-chunk-frames", type=int, default=12, help="Codec frames per decode after first chunk (default 12).")
+    parser.add_argument("--first-chunk-frames", type=int, default=2, help="Frames in first chunk for TTFC (default 2). Use 1 if profile_codec_decode.py shows 1 frame < 90 ms.")
     args = parser.parse_args()
 
     print("Loading MegakernelTalkerBackend (megakernel + TTS codec)...")
@@ -43,6 +45,7 @@ def main():
         language=args.language,
         max_new_tokens=1024,
         codec_chunk_frames=args.codec_chunk_frames,
+        first_chunk_frames=args.first_chunk_frames,
     ):
         if ttfc_ms is None:
             ttfc_ms = (time.perf_counter() - t_start) * 1000
