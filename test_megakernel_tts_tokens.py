@@ -54,23 +54,24 @@ def test_megakernel_with_tts_weights():
     for tid in prompt_ids[:-1]:
         decoder.step(tid)
     
-    # Generate a few tokens
+    # Generate a few tokens (with TTS weights these are codec token IDs, not text)
     generated = []
     for i in range(10):
         token_id = decoder.step(prompt_ids[-1] if i == 0 else token_id)
         generated.append(token_id)
-        text = decoder.tokenizer.decode([token_id], skip_special_tokens=True)
-        print(f"  Token {i+1}: {token_id:6d} → {repr(text)}")
+        # Decoding as text is wrong for codec IDs; show both for debugging
+        as_text = decoder.tokenizer.decode([token_id], skip_special_tokens=True)
+        print(f"  Token {i+1}: {token_id:6d}  (as text: {repr(as_text)})")
     
-    full_text = decoder.tokenizer.decode(generated, skip_special_tokens=True)
-    print(f"\nGenerated text: {repr(full_text)}")
+    print(f"\nGenerated codec token IDs: {generated}")
+    as_text_debug = decoder.tokenizer.decode(generated, skip_special_tokens=True)
+    print(f"(Decoded as text — not meaningful for codec): {repr(as_text_debug)}")
     
     print("\n" + "-" * 60)
     print("Analysis:")
     print("-" * 60)
     print("  Token IDs range:", min(generated), "to", max(generated))
-    print("  Vocab size check: Are these codec tokens (~151936 vocab) or text tokens?")
-    print("  Need to compare with qwen-tts's codec tokenizer to verify.")
+    print("  With TTS weights, these are codec tokens; feed to codec/vocoder for audio.")
     
     return True
 

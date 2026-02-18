@@ -60,9 +60,13 @@ def _load_weights_tts(model_name: str, verbose: bool) -> tuple[dict, object, flo
         tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B", trust_remote_code=True)
         if verbose:
             print("   Using Qwen/Qwen3-0.6B tokenizer (TTS repo tokenizer not available).")
-    # RoPE from talker config
+    # RoPE: talker config may have rope_theta=1000000 (rope_scaling); our kernel uses 1D RoPE with default 10000.
     rope_theta = float(getattr(talker.config, "rope_theta", 10000.0))
-    if verbose:
+    if rope_theta > 100000:
+        rope_theta = 10000.0
+        if verbose:
+            print("RoPE theta: 10000.0 (using default for 1D kernel; config had scaling value)")
+    elif verbose:
         print(f"RoPE theta: {rope_theta}")
     del tts_model
     torch.cuda.empty_cache()
