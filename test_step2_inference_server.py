@@ -121,23 +121,32 @@ def test_performance_benchmark():
     try:
         from inference_server import MegakernelDecoder, DecodeConfig
         
+        print("Loading decoder (this may take a moment if GPU memory is full)...")
         decoder = MegakernelDecoder(model_name="Qwen/Qwen3-0.6B", verbose=False)
+        print("✓ Decoder loaded")
+        
         prompt = "The capital of France is"
         config = DecodeConfig(max_new_tokens=100)
         
         print(f"Benchmarking {config.max_new_tokens} tokens...")
+        print("  (This may take 30-60 seconds for 3 runs)")
         
         # Warmup
+        print("  Warmup run (5 tokens)...")
+        warmup_start = time.perf_counter()
         list(decoder.generate_token_ids(prompt, config=DecodeConfig(max_new_tokens=5)))
+        warmup_time = time.perf_counter() - warmup_start
+        print(f"  Warmup completed in {warmup_time*1000:.1f}ms")
         
         # Actual benchmark
         times = []
-        for _ in range(3):
+        for run_num in range(3):
+            print(f"  Run {run_num+1}/3...", end=" ", flush=True)
             start = time.perf_counter()
             tokens = list(decoder.generate_token_ids(prompt, config=config))
             elapsed = time.perf_counter() - start
             times.append(elapsed)
-            print(f"  Run {len(times)}: {len(tokens)} tokens in {elapsed*1000:.2f}ms ({len(tokens)/elapsed:.1f} tok/s)")
+            print(f"✓ {len(tokens)} tokens in {elapsed*1000:.2f}ms ({len(tokens)/elapsed:.1f} tok/s)")
         
         avg_time = sum(times) / len(times)
         avg_tok_per_sec = config.max_new_tokens / avg_time
