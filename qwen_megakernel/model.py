@@ -50,16 +50,13 @@ def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     state = model.state_dict()
 
-    # Resolve effective RoPE theta from model config.
+    # Resolve RoPE theta from config.rope_theta.
     #
-    # Qwen3 stores the true theta inside config.rope_scaling['rope_theta']
-    # (= 1000000), not in config.rope_theta (= 10000).  Reading it here
-    # guarantees correctness for any model variant without hardcoding.
-    _rs = getattr(model.config, "rope_scaling", None)
-    if isinstance(_rs, dict) and "rope_theta" in _rs:
-        rope_theta = float(_rs["rope_theta"])
-    else:
-        rope_theta = float(getattr(model.config, "rope_theta", 10000.0))
+    # For rope_type='default', HuggingFace transformers uses config.rope_theta
+    # (= 10000) directly.  config.rope_scaling['rope_theta'] (= 1000000) is
+    # only used by dynamic/yarn/llama3 rope types — NOT 'default'.  Using the
+    # wrong value (1000000) produces completely degenerate output.
+    rope_theta = float(getattr(model.config, "rope_theta", 10000.0))
 
     if verbose:
         print(f"RoPE theta: {rope_theta}")
