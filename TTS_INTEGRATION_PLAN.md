@@ -59,20 +59,19 @@ Integrate AlpinDale's qwen_megakernel as the LLM decode backend for Qwen3-TTS ta
 
 ---
 
-### Step 3: Pipecat Integration
+### Step 3: Pipecat Integration ✅ DONE
 
 **Task 3.1: Custom TTS Service**
-- Create `pipecat_tts_service.py` implementing:
-  - `PipecatTTSService` class (inherits from Pipecat base)
-  - `synthesize(text: str) -> Iterator[AudioFrame]`
-  - Handle streaming (yield frames as generated)
+- Created `pipecat_tts_service.py`:
+  - `Qwen3TTSPipecatService(TTSService)` with `run_tts(text, context_id) -> AsyncGenerator[Frame, None]`
+  - Yields `TTSStartedFrame`, `TTSAudioRawFrame` (from backend chunks), `TTSStoppedFrame`
+  - Uses `inference_server.Qwen3TTSTalkerBackend` (optional injectable)
 
 **Task 3.2: Pipeline Setup**
-- Create `demo_pipecat.py` with:
-  - STT service (e.g., Deepgram)
-  - LLM service (e.g., OpenAI/Anthropic)
-  - Our TTS service
-  - Audio output
+- Created `demo_pipecat.py`:
+  - STT: Deepgram, LLM: OpenAI, TTS: Qwen3TTSPipecatService
+  - Pipeline: transport.input() → stt → user_aggregator → llm → tts → transport.output() → assistant_aggregator
+  - Run: `python demo_pipecat.py` (or `-t webrtc`); requires DEEPGRAM_API_KEY, OPENAI_API_KEY, and qwen-tts
 
 **Task 3.3: Streaming Validation**
 - Verify frames stream frame-by-frame (not buffered)
