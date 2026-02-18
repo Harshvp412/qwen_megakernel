@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import struct
-from typing import Optional
+from typing import Optional, Tuple, Union
 
 import torch
 
@@ -261,16 +261,17 @@ class Decoder:
         self._bmax_vals = torch.empty(4096, **f32)
         self._bmax_idxs = torch.empty(4096, dtype=torch.int32, device="cuda")
         self._out_token = torch.empty(1, dtype=torch.int32, device="cuda")
+        self._logits_buffer = torch.empty(VOCAB_SIZE, dtype=torch.float32, device="cuda")
 
     def step(
         self,
         token_id: int,
         rope_position_override: Optional[int] = None,
-    ) -> int:
-        """Decode one token. Returns the next token id.
-        When rope_position_override is set (e.g. len(prompt) for first gen step), use it for RoPE indexing to match HF.
-        """
+        return_logits: bool = False,
+    ) -> Union[int, Tuple[int, torch.Tensor]]:
+        """Decode one token. Returns the next token id, or (token_id, logits) when return_logits=True."""
         rop = -1 if rope_position_override is None else int(rope_position_override)
+        logits_out = self._logits_buffer if return_logits else None
         _decode(
             self._out_token,
             token_id,
@@ -298,8 +299,11 @@ class Decoder:
             MAX_SEQ_LEN,
             self._attn_scale,
             rop,
+            logits_out,
         )
         self._position += 1
+        if return_logits:
+            return self._out_token.item(), self._logits_buffer.clone()
         return self._out_token.item()
 
     def reset(self):

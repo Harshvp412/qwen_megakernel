@@ -50,7 +50,8 @@ extern "C" void launch_ldg_decode_direct(
     void *g_residual, void *g_q, void *g_k, void *g_v, void *g_attn_out,
     void *g_mlp_intermediate, void *g_normalized, void *block_max_vals,
     void *block_max_idxs, int num_layers, int position, int max_seq_len,
-    float attn_scale, int rope_position_override, cudaStream_t stream);
+    float attn_scale, int rope_position_override, float *logits_out,
+    cudaStream_t stream);
 
 void decode(torch::Tensor output_token, int64_t input_token_id,
             torch::Tensor embed_weight, torch::Tensor layer_weights_packed,
@@ -63,7 +64,15 @@ void decode(torch::Tensor output_token, int64_t input_token_id,
             torch::Tensor mlp_intermediate, torch::Tensor normalized,
             torch::Tensor block_max_vals, torch::Tensor block_max_idxs,
             int64_t num_layers, int64_t position, int64_t max_seq_len,
-            double attn_scale, int64_t rope_position_override) {
+            double attn_scale, int64_t rope_position_override,
+            c10::optional<torch::Tensor> logits_out = c10::nullopt) {
+  float *logits_ptr = nullptr;
+  if (logits_out.has_value() && logits_out->defined() && logits_out->numel() > 0) {
+    TORCH_CHECK(logits_out->is_contiguous() && logits_out->dtype() == torch::kFloat32
+                    && logits_out->device().is_cuda() && logits_out->dim() == 1,
+                "logits_out must be 1D contiguous float32 CUDA tensor");
+    logits_ptr = logits_out->data_ptr<float>();
+  }
   launch_ldg_decode_direct(
       static_cast<int>(input_token_id),
       static_cast<int *>(output_token.data_ptr()), embed_weight.data_ptr(),
@@ -77,7 +86,7 @@ void decode(torch::Tensor output_token, int64_t input_token_id,
       block_max_vals.data_ptr(), block_max_idxs.data_ptr(),
       static_cast<int>(num_layers), static_cast<int>(position),
       static_cast<int>(max_seq_len), static_cast<float>(attn_scale),
-      static_cast<int>(rope_position_override),
+      static_cast<int>(rope_position_override), logits_ptr,
       c10::cuda::getCurrentCUDAStream().stream());
 }
 
@@ -138,7 +147,8 @@ TORCH_LIBRARY_EXPAND(TORCH_EXTENSION_NAME, ops) {
           "Tensor mlp_intermediate, Tensor normalized, "
           "Tensor block_max_vals, Tensor block_max_idxs, "
           "int num_layers, int position, int max_seq_len, "
-          "float attn_scale, int rope_position_override=-1) -> ()");
+          "float attn_scale, int rope_position_override=-1, "
+          "Tensor? logits_out) -> ()");
   ops.impl("decode", torch::kCUDA, &decode);
 
   ops.def("generate_nosync(int first_token_id, int num_steps, "

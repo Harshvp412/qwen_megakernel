@@ -1184,6 +1184,20 @@ __global__ void ldg_lm_head_fused(const float *__restrict__ hidden,
   }
 }
 
+// Full logits output for parity debugging: logits_out[i] = hidden . weight[i,:]
+__global__ void ldg_lm_head_logits(const float *__restrict__ hidden,
+                                  const __nv_bfloat16 *__restrict__ weight,
+                                  float *__restrict__ logits_out) {
+  int row = blockIdx.x * blockDim.x + threadIdx.x;
+  if (row >= LDG_VOCAB_SIZE) return;
+  const __nv_bfloat16 *w_row = weight + row * HIDDEN_SIZE;
+  float sum = 0.0f;
+  for (int k = 0; k < HIDDEN_SIZE; k++) {
+    sum += __bfloat162float(w_row[k]) * hidden[k];
+  }
+  logits_out[row] = sum;
+}
+
 // =============================================================================
 // Persistent (non-cooperative) decode kernel
 // =============================================================================
@@ -1477,6 +1491,9 @@ static void ensure_barrier_alloc() {
 
 static inline void ldg_configure_kernel_attributes(); // forward decl
 
+constexpr int LDG_LM_LOGITS_BLOCK = 256;
+constexpr int LDG_LM_LOGITS_GRID = (LDG_VOCAB_SIZE + LDG_LM_LOGITS_BLOCK - 1) / LDG_LM_LOGITS_BLOCK;
+
 extern "C" void launch_ldg_decode_direct(
     int input_token_id, int *output_token_id, const void *embed_weight,
     const LDGLayerWeights *layer_weights, const void *final_norm_weight,
@@ -1485,7 +1502,8 @@ extern "C" void launch_ldg_decode_direct(
     void *g_residual, void *g_q, void *g_k, void *g_v, void *g_attn_out,
     void *g_mlp_intermediate, void *g_normalized, void *block_max_vals,
     void *block_max_idxs, int num_layers, int position, int max_seq_len,
-    float attn_scale, int rope_position_override, cudaStream_t stream) {
+    float attn_scale, int rope_position_override, float *logits_out,
+    cudaStream_t stream) {
   ldg_configure_kernel_attributes();
   ensure_barrier_alloc();
 
@@ -1505,6 +1523,11 @@ extern "C" void launch_ldg_decode_direct(
       (const float *)g_normalized, (const __nv_bfloat16 *)lm_head_weight,
       (float *)block_max_vals, (int *)block_max_idxs, output_token_id,
       d_lm_head_counter, LDG_LM_NUM_BLOCKS);
+  if (logits_out != nullptr) {
+    ldg_lm_head_logits<<<LDG_LM_LOGITS_GRID, LDG_LM_LOGITS_BLOCK, 0, stream>>>(
+        (const float *)g_normalized, (const __nv_bfloat16 *)lm_head_weight,
+        logits_out);
+  }
 }
 
 extern "C" void launch_ldg_decode_persistent(
