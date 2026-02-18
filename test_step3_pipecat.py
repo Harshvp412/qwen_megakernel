@@ -12,13 +12,6 @@ import argparse
 import asyncio
 import sys
 
-# Pipecat frame types we assert on
-from pipecat.frames.frames import (
-    TTSAudioRawFrame,
-    TTSStartedFrame,
-    TTSStoppedFrame,
-)
-
 
 async def test_tts_service_run_tts(write_wav: str | None) -> bool:
     """Test Qwen3TTSPipecatService: run_tts yields Started -> AudioRaw* -> Stopped."""
@@ -27,9 +20,22 @@ async def test_tts_service_run_tts(write_wav: str | None) -> bool:
     print("=" * 60)
 
     try:
+        from pipecat.frames.frames import (
+            TTSAudioRawFrame,
+            TTSStartedFrame,
+            TTSStoppedFrame,
+        )
+    except ImportError as e:
+        print(f"⚠️  Skipped: pipecat not installed: {e}")
+        print("   Install with: pip install pipecat-ai")
+        return None  # skip
+
+    try:
         from pipecat_tts_service import Qwen3TTSPipecatService
     except ImportError as e:
         print(f"⚠️  Skipped: pipecat_tts_service not importable: {e}")
+        if "websockets" in str(e):
+            print("   Install with: pip install websockets")
         return None  # skip
 
     try:
@@ -44,8 +50,15 @@ async def test_tts_service_run_tts(write_wav: str | None) -> bool:
     text = "Hello. This is a quick test."
     context_id = "test-context-1"
     frames = []
-    async for f in tts.run_tts(text, context_id):
-        frames.append(f)
+    try:
+        async for f in tts.run_tts(text, context_id):
+            frames.append(f)
+    except RuntimeError as e:
+        if "not available" in str(e) or "qwen-tts" in str(e).lower() or "qwen_tts" in str(e):
+            print(f"⚠️  TTS backend not available: {e}")
+            print("   Install qwen-tts to run this test.")
+            return None
+        raise
 
     # Assert frame sequence
     if not frames:
@@ -102,7 +115,7 @@ def main():
     print("STEP 3 TEST SUMMARY")
     print("=" * 60)
     if result is None:
-        print("  Qwen3TTSPipecatService.run_tts()   ⚠ SKIP (qwen-tts not available)")
+        print("  Qwen3TTSPipecatService.run_tts()   ⚠ SKIP (see message above)")
     elif result:
         print("  Qwen3TTSPipecatService.run_tts()   ✓ PASS")
     else:
