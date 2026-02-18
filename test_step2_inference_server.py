@@ -105,6 +105,15 @@ def test_tts_backend():
         print(f"⚠️  TTS backend not available: {e}")
         print("   (qwen-tts may not be installed or compatible)")
         return None, None, None
+    except RuntimeError as e:
+        if "qwen-tts is not installed" in str(e) or "qwen_tts" in str(e):
+            print(f"⚠️  TTS backend skipped: {e}")
+            print("   Install with: pip install qwen-tts (optional for Step 2)")
+            return None, None, None
+        print(f"✗ TTS backend test failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False, None, None
     except Exception as e:
         print(f"✗ TTS backend test failed: {e}")
         import traceback
