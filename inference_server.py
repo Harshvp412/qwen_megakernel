@@ -181,25 +181,30 @@ class Qwen3TTSTalkerBackend:
         the megakernel decoder directly into the TTS pipeline, this can
         yield real-time chunks instead of post-processing.
         """
-        # Generate full audio (non-streaming for now)
-        if ref_audio is not None and ref_text is not None:
-            wavs, sr = self._tts_model.generate_voice_clone(
-                text=text,
-                language=language,
-                ref_audio=ref_audio,
-                ref_text=ref_text,
+        # Qwen3-TTS Base model only has generate_voice_clone (no plain generate()).
+        # Use default ref if none provided so text-only calls still work.
+        if ref_audio is None or ref_text is None:
+            ref_audio = ref_audio or (
+                "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-TTS-Repo/clone.wav"
             )
-        else:
-            wavs, sr = self._tts_model.generate(
-                text=text,
-                language=language,
+            ref_text = ref_text or (
+                "Okay. Yeah. I resent you. I love you. I respect you. "
+                "But you know what? You blew it! And thanks to you."
             )
+        wavs, sr = self._tts_model.generate_voice_clone(
+            text=text,
+            language=language,
+            ref_audio=ref_audio,
+            ref_text=ref_text,
+        )
 
-        # Convert to tensor if needed
+        # Convert to tensor (wavs may be list of np.ndarray or single array)
         if isinstance(wavs, list):
-            wav = torch.cat([torch.tensor(w, dtype=torch.float32) for w in wavs], dim=0)
+            wav = torch.cat(
+                [torch.as_tensor(w, dtype=torch.float32).flatten() for w in wavs], dim=0
+            )
         else:
-            wav = torch.tensor(wavs, dtype=torch.float32) if not isinstance(wavs, torch.Tensor) else wavs
+            wav = torch.as_tensor(wavs, dtype=torch.float32).flatten()
 
         # Chunk into streaming blocks
         num_samples = wav.shape[0]
