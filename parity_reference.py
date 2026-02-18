@@ -75,9 +75,11 @@ MK_MAX_SEQ_LEN        = 2048
 # ---------------------------------------------------------------------------
 
 def _pick_device() -> str:
-    """Return 'mps' if Apple Silicon MPS is available, else 'cpu'."""
+    """Prefer CUDA, then MPS, then CPU."""
     try:
         import torch
+        if torch.cuda.is_available():
+            return "cuda"
         if torch.backends.mps.is_available():
             return "mps"
     except Exception:
@@ -85,14 +87,15 @@ def _pick_device() -> str:
     return "cpu"
 
 
-def _safe_dtype():
+def _safe_dtype(device: str):
     """
-    Always float32 for reference generation.
-
-    bfloat16 is not supported on Mac CPU/MPS and would introduce rounding
-    differences.  float32 gives maximum fidelity for ground-truth purposes.
+    Match the runtime numerics as closely as practical:
+      - CUDA: bfloat16 (same as megakernel weight path)
+      - CPU/MPS: float32 fallback
     """
     import torch
+    if device == "cuda":
+        return torch.bfloat16
     return torch.float32
 
 
@@ -295,7 +298,7 @@ def run(model_name: str) -> dict:
     from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 
     device = _pick_device()
-    dtype  = _safe_dtype()
+    dtype  = _safe_dtype(device)
 
     print(f"Model  : {model_name}")
     print(f"Device : {device}")
@@ -342,7 +345,7 @@ def run(model_name: str) -> dict:
     # ── Load model ───────────────────────────────────────────────────────────
     # NOTE: transformers 5.x deprecated torch_dtype=; use dtype= instead.
     # This matches what the megakernel's model.py already uses correctly.
-    print("Loading model weights (may take a moment on CPU)...")
+    print(f"Loading model weights (device={device}, dtype={dtype})...")
     t0    = time.perf_counter()
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
