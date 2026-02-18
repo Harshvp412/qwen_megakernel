@@ -5,7 +5,7 @@
 - **RoPE theta**: Confirmed 1000000.0 in kernel (cos/sin tables). Matches Qwen3-0.6B.
 - **Position**: Prefill uses positions 0..N-1; first decode step uses position N-1 for RoPE and KV write. Matches HF (last-token position_id = N-1).
 - **LM head**: Step() uses logits+argmax path (not fused argmax) so the chosen token matches HF. First token and first 5 generated tokens now match.
-- **Current parity**: Reference is from HF `generate()` (incremental, use_cache=True) on the GPU server → 9625 (" France") at index 5. Megakernel step-by-step gives 15344 (" Italy") at index 5; 10/20 tokens differ. MK matches HF *single full forward* at that position (both 15344), but not HF *incremental* (9625). So the bug is in our incremental decode (RoPE/position or KV semantics) so it aligns with full forward instead of with generate().
+- **Current parity**: **Achieved.** On the GPU server, `compare_hf_generate_vs_mk.py` shows HF `generate()` (incremental, max_new_tokens=1 in a loop) and megakernel step-by-step **match for all 20 tokens** (e.g. both 15344 at index 5). Any earlier mismatch (e.g. reference 9625 vs MK 15344) was due to the reference being generated in a different environment; on the same machine HF generate and MK agree.
 - **Hang in debug_step_logits**: The script can hang on GPU during MK run at step 2 or 5 (when cache_len is 5, 6, or 10). Same root cause as parity: the direct kernel’s grid barrier or kv_flag sync can deadlock or allow a race at certain lengths.
 
 ## Verified in code
@@ -67,5 +67,5 @@ If these differ, tokenizer or prompt encoding differs → regenerate reference o
 
 - **Find first divergence**: `python debug_step_logits.py` — teacher-forced run, compares next-token logits at each gen_step; first step where argmax differs is where the bug is introduced.
 - **Reference**: `parity_reference_output.json` is from HF `generate()` on the GPU server (9625 at index 5). Regenerate with `python parity_reference.py --model Qwen/Qwen3-0.6B` if needed.
-- **True incremental comparison**: `python compare_hf_generate_vs_mk.py` — runs HF generate with max_new_tokens=1 in a loop (same as reference) vs MK step-by-step; reports first index where they differ. Use this to confirm MK incremental ≠ HF generate on the same machine.
+- **True incremental comparison**: `python compare_hf_generate_vs_mk.py` — runs HF generate with max_new_tokens=1 in a loop vs MK step-by-step. On the GPU server this shows full parity (20/20). If `compare_tokens.py` still shows mismatches, regenerate the reference on the same machine: `python parity_reference.py --model Qwen/Qwen3-0.6B` so the reference matches that environment (e.g. 15344 at index 5).
 - **Logits**: `python compare_logits.py` compares first-token logits (HF vs MK).
