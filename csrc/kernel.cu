@@ -463,10 +463,12 @@ __device__ void ldg_attention(
     if (block_id < ATTN_BLOCKS) {
       __syncthreads();
     }
-    // Block 0: signal KV cache is written (after intra-block sync)
-    if (block_id == 0 && threadIdx.x == 0) {
-      asm volatile("fence.acq_rel.gpu;" ::: "memory");
-      atomicExch(kv_flag, (unsigned int)(layer_idx + 1));
+    // Block 0: ensure KV cache write is visible to all blocks, then signal
+    if (block_id == 0) {
+      __threadfence();  // all threads in block 0: make KV write visible before any block reads
+      if (threadIdx.x == 0) {
+        atomicExch(kv_flag, (unsigned int)(layer_idx + 1));
+      }
     }
     // Blocks 1-15: wait for KV cache
     if (block_id > 0 && block_id < ATTN_BLOCKS) {

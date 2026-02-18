@@ -64,5 +64,7 @@ If these differ, tokenizer or prompt encoding differs → regenerate reference o
 
 ## Next steps
 
-- **If parity fails after a few tokens**: First 5 match then diverge → compare KV cache (and/or hidden state) with HF after step 5 (e.g. dump `dec._k_cache` / `dec._v_cache` and HF’s past_key_values at the same position) to see if a slot is wrong or if attention scores drift.
-- **Logits comparison**: `python compare_logits.py` compares HF vs megakernel first-token logits (and confirms argmax match when using logits path).
+- **Find first divergence**: `python debug_step_logits.py` — teacher-forced run, compares next-token logits at each gen_step; first step where argmax differs is where the bug is introduced.
+- **Kernel fix**: In `ldg_attention`, block 0 now does `__threadfence()` (all threads) before signaling `kv_flag`, so KV cache write is visible to all blocks before any attention read.
+- **Reference**: `parity_reference_output.json` was restored to the correct HF sequence (9625 at index 5). Regenerate with `python parity_reference.py --model Qwen/Qwen3-0.6B` if needed.
+- **Logits**: `python compare_logits.py` compares first-token logits (HF vs MK).
