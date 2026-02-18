@@ -148,9 +148,9 @@ if __name__ == "__main__":
         compare_with_megakernel(base_config)
     
     # Check Qwen3-TTS models
+    # Note: These require qwen-tts package to be installed
     tts_models = [
         "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
-        "Qwen/Qwen3-TTS",
     ]
     
     for tts_model in tts_models:

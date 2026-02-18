@@ -19,12 +19,21 @@ _decode = torch.ops.qwen_megakernel_C.decode
 
 
 def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
-    """Load Qwen3-0.6B weights from HuggingFace into GPU tensors."""
+    """Load Qwen3-0.6B or Qwen3-TTS weights from HuggingFace into GPU tensors."""
     if not verbose:
         import os
 
         os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
         os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
+
+    # Register qwen3_tts architecture if needed (for TTS models)
+    if "tts" in model_name.lower() or "TTS" in model_name:
+        try:
+            import qwen_tts  # noqa: F401 - registers qwen3_tts architecture
+        except ImportError:
+            if verbose:
+                print("⚠️  qwen-tts package not found. Install with: pip install qwen-tts")
+                print("   Continuing anyway - may fail if model requires it...")
 
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from transformers.utils import logging as hf_logging
@@ -45,7 +54,7 @@ def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
     if verbose:
         print(f"Loading {model_name}...")
     model = AutoModelForCausalLM.from_pretrained(
-        model_name, dtype=torch.bfloat16, device_map="cuda"
+        model_name, dtype=torch.bfloat16, device_map="cuda", trust_remote_code=True
     )
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     state = model.state_dict()
