@@ -238,14 +238,20 @@ def main(ref_path: Path, model_name: str) -> int:
                     print("   → Likely cause: Numerical precision or specific token edge case")
             
             print(f"\n🔧 FIX CHECKLIST:")
-            # Get actual rope_theta from model config
-            try:
-                from transformers import AutoConfig
-                config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
-                rope_theta = float(getattr(config, "rope_theta", 10000.0))
-                print(f"   1. Verify RoPE theta: config.rope_theta = {rope_theta} (used in kernel)")
-            except Exception:
-                print(f"   1. Verify RoPE theta: check model.py load_weights() uses config.rope_theta")
+            # Show RoPE theta actually used to build cos/sin tables (must be 1000000 for Qwen3-0.6B parity)
+            rt_used = getattr(dec, "_rope_theta_used", None)
+            if rt_used is not None:
+                print(f"   1. RoPE theta used in kernel (cos/sin tables): {rt_used}")
+                if "0.6B" in model_name and "tts" not in model_name.lower() and abs(float(rt_used) - 1000000.0) > 1.0:
+                    print(f"      ⚠️  For Qwen3-0.6B parity this must be 1000000.0 — update model.py to use config.rope_scaling or config.rope_theta")
+            else:
+                try:
+                    from transformers import AutoConfig
+                    config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+                    rope_theta = float(getattr(config, "rope_theta", 10000.0))
+                    print(f"   1. Verify RoPE theta: config.rope_theta = {rope_theta} (decoder did not expose _rope_theta_used)")
+                except Exception:
+                    print(f"   1. Verify RoPE theta: check model.py load_weights() uses config.rope_theta / rope_scaling")
             expected_pos = len(prompt_ids) - 1 + max_tokens  # -1 because we prefill (len-1) tokens
             print(f"   2. Check position counter: dec.position = {dec.position} (expected: {expected_pos})")
             if dec.position != expected_pos:
