@@ -67,7 +67,7 @@ MK_NUM_LAYERS         = 28
 MK_NUM_KV_HEADS       = 8
 MK_HEAD_DIM           = 128
 MK_VOCAB_SIZE         = 151936
-MK_ROPE_THETA         = 10000.0   # ⚠ likely wrong for Qwen3 — see Issue #3 above
+MK_ROPE_THETA         = 1000000.0  # model.py reads config.rope_theta dynamically
 MK_MAX_SEQ_LEN        = 2048
 
 # ---------------------------------------------------------------------------
@@ -164,8 +164,8 @@ def _check_config(config) -> dict:
     if abs(effective_rope_theta - MK_ROPE_THETA) > 1.0:
         print(f"  ✗  effective rope_theta = {effective_rope_theta}  "
               f"(megakernel hardcodes {MK_ROPE_THETA})")
-        print("     ACTION REQUIRED: update inv_freq in model.py load_weights():")
-        print(f"       10000.0  →  {effective_rope_theta}")
+        print("     ACTION REQUIRED: update MK_ROPE_THETA in parity_reference.py")
+        print(f"       or verify model.py reads config.rope_theta dynamically.")
     else:
         print(f"  ✓  rope_theta = {effective_rope_theta}")
 
