@@ -31,8 +31,14 @@ def _load_weights_tts(model_name: str, verbose: bool) -> tuple[dict, object, flo
         torch_dtype=torch.bfloat16,
         device_map="cuda" if torch.cuda.is_available() else "cpu",
     )
+    # Qwen3TTSModel wraps .model (Qwen3TTSForConditionalGeneration) which has .talker
+    talker = getattr(tts_model, "talker", None) or getattr(tts_model.model, "talker", None)
+    if talker is None:
+        raise AttributeError(
+            "TTS model has no 'talker' (expected on model.talker for Qwen3TTSForConditionalGeneration)"
+        )
     # Talker state_dict: keys like model.codec_embedding.weight, model.layers.*, model.norm.weight, codec_head.weight
-    raw = tts_model.talker.state_dict()
+    raw = talker.state_dict()
     state = {}
     for k, v in raw.items():
         if not (k.startswith("model.") or k.startswith("codec_head.")):
@@ -55,7 +61,7 @@ def _load_weights_tts(model_name: str, verbose: bool) -> tuple[dict, object, flo
         if verbose:
             print("   Using Qwen/Qwen3-0.6B tokenizer (TTS repo tokenizer not available).")
     # RoPE from talker config
-    rope_theta = float(getattr(tts_model.talker.config, "rope_theta", 10000.0))
+    rope_theta = float(getattr(talker.config, "rope_theta", 10000.0))
     if verbose:
         print(f"RoPE theta: {rope_theta}")
     del tts_model
