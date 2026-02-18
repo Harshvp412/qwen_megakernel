@@ -1,5 +1,18 @@
-torch>=2.0.0
-transformers>=4.40.0
-triton>=2.2.0
-ninja
-accelerate
+# Core — install PyTorch with the CUDA 12.8 index:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu128
+torch>=2.5.0
+
+# transformers 5.x — uses dtype= kwarg (not torch_dtype=)
+transformers>=5.0.0
+
+# HuggingFace Hub — model download & caching
+huggingface_hub>=0.24.0
+
+# Required by transformers device_map= support
+accelerate>=0.30.0
+
+# CUDA extension build (kernel.cu → .so)
+ninja>=1.11.0
+
+# Audio output for TTS integration (optional, not needed for parity check)
+soundfile>=0.12.0
