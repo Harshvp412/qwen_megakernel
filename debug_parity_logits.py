@@ -70,26 +70,34 @@ def main():
     dec.reset()
     for tid in prompt_ids[:-1]:
         dec.step(tid)
-    # First gen step: use RoPE at len(prompt_ids) to match HF (first-token parity)
-    mk_token = dec.step(prompt_ids[-1], rope_position_override=len(prompt_ids))
-    print(f"Megakernel first token: {mk_token} ({tokenizer.decode([mk_token], skip_special_tokens=False)})")
+    # No override: use position=4 for RoPE (matches HF's last-token position in full forward)
+    mk_token = dec.step(prompt_ids[-1])
+    print(f"Megakernel first token (no override): {mk_token} ({tokenizer.decode([mk_token], skip_special_tokens=False)})")
+    # With override=5: often worse (e.g. 32671); with no override we get 1112 (HF #4)
+    dec.reset()
+    for tid in prompt_ids[:-1]:
+        dec.step(tid)
+    mk_token_override = dec.step(prompt_ids[-1], rope_position_override=len(prompt_ids))
+    print(f"Megakernel first token (override=len(prompt)): {mk_token_override} ({tokenizer.decode([mk_token_override], skip_special_tokens=False)})")
 
     # --- Compare ---
+    hf_top_ids = topk.indices.cpu().tolist()
     print("\n--- Comparison ---")
-    if mk_token == hf_argmax:
-        print("Match: first token agrees with HF argmax.")
-    elif mk_token == expected_first:
-        print("Megakernel matches reference (12095); HF argmax differs (possible HF version/revision).")
-    else:
-        rank = None
-        for i, idx in enumerate(topk.indices.cpu().tolist()):
-            if idx == mk_token:
-                rank = i + 1
-                break
-        if rank is not None:
-            print(f"Megakernel token {mk_token} is HF's #{rank} choice (not argmax).")
+    for label, mid in [("no override", mk_token), ("override=len(prompt)", mk_token_override)]:
+        if mid == hf_argmax:
+            print(f"Megakernel ({label}): MATCHES HF argmax.")
         else:
-            print(f"Megakernel token {mk_token} is not in HF top-10 -> large divergence (check RoPE/weights/attention).")
+            rank = None
+            for i, idx in enumerate(hf_top_ids):
+                if idx == mid:
+                    rank = i + 1
+                    break
+            if rank is not None:
+                print(f"Megakernel ({label}): {mid} is HF's #{rank} choice.")
+            else:
+                print(f"Megakernel ({label}): {mid} is NOT in HF top-10.")
+    if mk_token != hf_argmax and mk_token_override != hf_argmax:
+        print(f"Neither matches HF argmax {hf_argmax} ( Paris). Likely bf16 or small kernel bug.")
     print()
     return 0
 

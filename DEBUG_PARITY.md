@@ -3,8 +3,8 @@
 ## Status
 
 - **RoPE theta**: Confirmed 1000000.0 in kernel (cos/sin tables). Matches Qwen3-0.6B.
-- **Position**: Prefill uses positions 0..N-1; first decode step uses position N. Matches HF.
-- **All 20 tokens still differ** → need to locate where the outputs diverge.
+- **Position**: Prefill uses positions 0..N-1; first decode step uses position N-1 for RoPE and KV write. Matches HF (last-token position_id = N-1).
+- **RoPE override**: Using `rope_position_override=len(prompt)` for the first gen step was tried; it made the first token worse (32671 vs 1112). Reverted; no override is used. Without override, megakernel first token is 1112 (HF's #4 choice); full parity still fails (20/20 differ). Remaining gap likely bf16 accumulation order or a small kernel bug.
 
 ## Verified in code
 
@@ -63,5 +63,5 @@ If these differ, tokenizer or prompt encoding differs → regenerate reference o
 
 ## Next steps
 
-- Run `debug_parity_logits.py` and check whether megakernel token appears in HF top-10.
-- If it does not, the bug is before lm_head (attention/MLP/norm or weights). If it does, focus on lm_head or numerical/argmax.
+- Run `debug_parity_logits.py`: it prints both no-override and override=len(prompt) first tokens and their rank in HF top-10.
+- Megakernel (no override) first token is HF's #4 → small numerical/ordering gap (bf16 or argmax tie). To get exact parity, consider: returning logits from kernel for comparison, or running HF in bf16 with same reduction order; or auditing attention/lm_head for subtle bugs.
