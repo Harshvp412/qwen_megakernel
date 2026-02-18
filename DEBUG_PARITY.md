@@ -5,8 +5,8 @@
 - **RoPE theta**: Confirmed 1000000.0 in kernel (cos/sin tables). Matches Qwen3-0.6B.
 - **Position**: Prefill uses positions 0..N-1; first decode step uses position N-1 for RoPE and KV write. Matches HF (last-token position_id = N-1).
 - **LM head**: Step() uses logits+argmax path (not fused argmax) so the chosen token matches HF. First token and first 5 generated tokens now match.
-- **Current parity**: First 5 generated tokens match; first mismatch at index 5 (ref 9625 " France", MK 15344 " Italy"); 10/20 differ. Likely cause: kernel sync/race when cache has 5+ positions.
-- **Hang in debug_step_logits**: The script can hang on GPU during MK run at step 2 or 5 (when cache_len is 5, 6, or 10). Same root cause as parity: the direct kernel’s grid barrier or kv_flag sync can deadlock or allow a race at certain lengths, so you either get wrong tokens (parity fail) or a hang.
+- **Current parity**: Reference is from HF `generate()` (incremental, use_cache=True) on the GPU server → 9625 (" France") at index 5. Megakernel step-by-step gives 15344 (" Italy") at index 5; 10/20 tokens differ. MK matches HF *single full forward* at that position (both 15344), but not HF *incremental* (9625). So the bug is in our incremental decode (RoPE/position or KV semantics) so it aligns with full forward instead of with generate().
+- **Hang in debug_step_logits**: The script can hang on GPU during MK run at step 2 or 5 (when cache_len is 5, 6, or 10). Same root cause as parity: the direct kernel’s grid barrier or kv_flag sync can deadlock or allow a race at certain lengths.
 
 ## Verified in code
 
@@ -66,6 +66,6 @@ If these differ, tokenizer or prompt encoding differs → regenerate reference o
 ## Next steps
 
 - **Find first divergence**: `python debug_step_logits.py` — teacher-forced run, compares next-token logits at each gen_step; first step where argmax differs is where the bug is introduced.
-- **Kernel fix**: In `ldg_attention`, block 0 now does `__threadfence()` (all threads) before signaling `kv_flag`, so KV cache write is visible to all blocks before any attention read.
-- **Reference**: `parity_reference_output.json` was restored to the correct HF sequence (9625 at index 5). Regenerate with `python parity_reference.py --model Qwen/Qwen3-0.6B` if needed.
+- **Reference**: `parity_reference_output.json` is from HF `generate()` on the GPU server (9625 at index 5). Regenerate with `python parity_reference.py --model Qwen/Qwen3-0.6B` if needed.
+- **True incremental comparison**: `python compare_hf_generate_vs_mk.py` — runs HF generate with max_new_tokens=1 in a loop (same as reference) vs MK step-by-step; reports first index where they differ. Use this to confirm MK incremental ≠ HF generate on the same machine.
 - **Logits**: `python compare_logits.py` compares first-token logits (HF vs MK).
