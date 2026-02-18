@@ -1198,6 +1198,38 @@ __global__ void ldg_lm_head_logits(const float *__restrict__ hidden,
   logits_out[row] = sum;
 }
 
+// Argmax over full logits (for correct-token path; avoids fused-kernel reduction bug)
+constexpr int LDG_ARGMAX_BLOCK = 256;
+__global__ void ldg_argmax(const float *__restrict__ logits, int *__restrict__ output_token) {
+  __shared__ float s_max_vals[LDG_ARGMAX_BLOCK];
+  __shared__ int s_max_idxs[LDG_ARGMAX_BLOCK];
+  const int tid = threadIdx.x;
+  float my_max = -INFINITY;
+  int my_idx = -1;
+  for (int i = tid; i < LDG_VOCAB_SIZE; i += blockDim.x) {
+    float v = logits[i];
+    if (v > my_max) {
+      my_max = v;
+      my_idx = i;
+    }
+  }
+  s_max_vals[tid] = my_max;
+  s_max_idxs[tid] = my_idx;
+  __syncthreads();
+  for (int s = blockDim.x / 2; s > 0; s >>= 1) {
+    if (tid < s) {
+      if (s_max_vals[tid + s] > s_max_vals[tid]) {
+        s_max_vals[tid] = s_max_vals[tid + s];
+        s_max_idxs[tid] = s_max_idxs[tid + s];
+      }
+    }
+    __syncthreads();
+  }
+  if (tid == 0) {
+    *output_token = s_max_idxs[0];
+  }
+}
+
 // =============================================================================
 // Persistent (non-cooperative) decode kernel
 // =============================================================================
@@ -1518,15 +1550,17 @@ extern "C" void launch_ldg_decode_direct(
       d_barrier_counter, d_barrier_sense, d_kv_flag, d_attn_flag, num_layers,
       position, input_token_id, max_seq_len, attn_scale, rope_position_override);
 
-  cudaMemsetAsync(d_lm_head_counter, 0, sizeof(unsigned int), stream);
-  ldg_lm_head_fused<<<LDG_LM_NUM_BLOCKS, LDG_LM_BLOCK_SIZE, 0, stream>>>(
-      (const float *)g_normalized, (const __nv_bfloat16 *)lm_head_weight,
-      (float *)block_max_vals, (int *)block_max_idxs, output_token_id,
-      d_lm_head_counter, LDG_LM_NUM_BLOCKS);
   if (logits_out != nullptr) {
     ldg_lm_head_logits<<<LDG_LM_LOGITS_GRID, LDG_LM_LOGITS_BLOCK, 0, stream>>>(
         (const float *)g_normalized, (const __nv_bfloat16 *)lm_head_weight,
         logits_out);
+    ldg_argmax<<<1, LDG_ARGMAX_BLOCK, 0, stream>>>(logits_out, output_token_id);
+  } else {
+    cudaMemsetAsync(d_lm_head_counter, 0, sizeof(unsigned int), stream);
+    ldg_lm_head_fused<<<LDG_LM_NUM_BLOCKS, LDG_LM_BLOCK_SIZE, 0, stream>>>(
+        (const float *)g_normalized, (const __nv_bfloat16 *)lm_head_weight,
+        (float *)block_max_vals, (int *)block_max_idxs, output_token_id,
+        d_lm_head_counter, LDG_LM_NUM_BLOCKS);
   }
 }
 
