@@ -6,6 +6,8 @@ Optimised exclusively for **RTX 5090 (sm_120, CUDA 12.8+)**.
 
 More details: https://blog.alpindale.net/posts/5090_decode_optimization/
 
+**Assignment alignment:** This repo wires the megakernel into a Pipecat voice pipeline using Qwen3-TTS for audio. For a strict requirement-by-requirement checklist (what’s done vs what’s missing — e.g. megakernel as talker decoder, streaming, TTFC/RTF targets), see **[ASSIGNMENT_CHECKLIST.md](ASSIGNMENT_CHECKLIST.md)**.
+
 | Backend      | tok/s  | ms/tok | Speedup |
 | ------------ | ------ | ------ | ------- |
 | PyTorch (HF) | 123.3  | 8.11   | 1.00x   |
@@ -164,6 +166,15 @@ python demo_pipecat.py
 ```
 
 Open the URL printed (e.g. WebRTC client), connect, and talk. Pipeline: Deepgram STT → OpenAI LLM → Qwen3-TTS (our service) → audio out.
+
+**Optional system dependencies (for TTS)**
+
+- **SoX** — Used by qwen-tts (or its dependencies) for audio processing. The pipeline works without it (you may see “SoX could not be found”); to silence the warning and enable any SoX-based features:
+  ```bash
+  # Debian/Ubuntu
+  sudo apt-get update && sudo apt-get install -y sox
+  ```
+- **flash-attn** — Optional; qwen-tts will warn “flash-attn is not installed” and use a slower path. Install only if system CUDA matches the CUDA version PyTorch was built with (e.g. PyTorch built for 12.8 needs system CUDA 12.8). If you see “CUDA version mismatches” (e.g. system 13.0 vs PyTorch 12.8), skip flash-attn; TTS runs without it.
 
 **Known limitations**
 
