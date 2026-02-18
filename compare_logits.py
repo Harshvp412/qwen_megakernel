@@ -4,7 +4,19 @@ Compare first-token logits: HuggingFace (bf16) vs megakernel.
 Run on GPU. Prints argmax, top-10, and logit values for 12095/1112 to diagnose
 why megakernel picks 1112 instead of 12095.
 """
+import os
 import sys
+
+# If you see "Aborted" in parseSchema, clear cache and re-run:
+#   FORCE_REBUILD_MEGAKERNEL=1 python compare_logits.py
+_ext_root = os.path.join(os.path.expanduser("~"), ".cache", "torch_extensions")
+if os.environ.get("FORCE_REBUILD_MEGAKERNEL") and os.path.isdir(_ext_root):
+    for sub in os.listdir(_ext_root):
+        path = os.path.join(_ext_root, sub, "qwen_megakernel_C")
+        if os.path.isdir(path):
+            import shutil
+            shutil.rmtree(path, ignore_errors=True)
+            break
 
 PROMPT = "The capital of France is"
 MODEL_NAME = "Qwen/Qwen3-0.6B"

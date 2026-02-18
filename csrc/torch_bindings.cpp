@@ -196,7 +196,7 @@ TORCH_LIBRARY_EXPAND(TORCH_EXTENSION_NAME, ops) {
           "Tensor mlp_intermediate, Tensor normalized, "
           "Tensor block_max_vals, Tensor block_max_idxs, "
           "int num_layers, int position, int max_seq_len, "
-          "float attn_scale, int rope_position_override=-1) -> ()");
+          "float attn_scale, int rope_position_override) -> ()");
   ops.impl("decode", torch::kCUDA, &decode);
   ops.def("decode_with_logits(Tensor output_token, int input_token_id, "
           "Tensor embed_weight, Tensor layer_weights_packed, "
@@ -208,7 +208,7 @@ TORCH_LIBRARY_EXPAND(TORCH_EXTENSION_NAME, ops) {
           "Tensor mlp_intermediate, Tensor normalized, "
           "Tensor block_max_vals, Tensor block_max_idxs, "
           "int num_layers, int position, int max_seq_len, "
-          "float attn_scale, int rope_position_override=-1, "
+          "float attn_scale, int rope_position_override, "
           "Tensor logits_out) -> ()");
   ops.impl("decode_with_logits", torch::kCUDA, &decode_with_logits);
 
