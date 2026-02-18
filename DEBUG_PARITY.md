@@ -5,7 +5,8 @@
 - **RoPE theta**: Confirmed 1000000.0 in kernel (cos/sin tables). Matches Qwen3-0.6B.
 - **Position**: Prefill uses positions 0..N-1; first decode step uses position N-1 for RoPE and KV write. Matches HF (last-token position_id = N-1).
 - **LM head**: Step() uses logits+argmax path (not fused argmax) so the chosen token matches HF. First token and first 5 generated tokens now match.
-- **Current parity**: First 5 generated tokens match; first mismatch at generated token index 5 (reference 9625 " France", megakernel 15344 " Italy"). Divergence then grows. Likely cause: KV cache write/read or attention accumulation once cache has 10+ positions; or bf16 drift over steps.
+- **Current parity**: First 5 generated tokens match; first mismatch at index 5 (ref 9625 " France", MK 15344 " Italy"); 10/20 differ. Likely cause: kernel sync/race when cache has 5+ positions.
+- **Hang in debug_step_logits**: The script can hang on GPU during MK run at step 2 or 5 (when cache_len is 5, 6, or 10). Same root cause as parity: the direct kernel’s grid barrier or kv_flag sync can deadlock or allow a race at certain lengths, so you either get wrong tokens (parity fail) or a hang.
 
 ## Verified in code
 

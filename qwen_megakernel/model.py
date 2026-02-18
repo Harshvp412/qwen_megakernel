@@ -303,6 +303,7 @@ class Decoder:
             rop,
             self._logits_buffer,
         )
+        torch.cuda.synchronize()  # ensure kernel completes before next step (helps avoid reorder/race)
         self._position += 1
         if return_logits:
             return self._out_token.item(), self._logits_buffer.clone()

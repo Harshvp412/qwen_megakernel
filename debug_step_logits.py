@@ -60,15 +60,25 @@ def main():
         print(f"Step {gen_step}: MK run...", flush=True)
         # MK: prefill; then step(last_prompt), step(ref[0]), ..., step(ref[gen_step-1]); last step returns logits
         dec.reset()
-        for t in prompt_ids[:-1]:
+        for ti, t in enumerate(prompt_ids[:-1]):
             dec.step(t)
+            if gen_step >= 2:
+                print(f"  prefill step {ti} done (pos={dec.position})", flush=True)
         if gen_step == 0:
             _, mk_logits = dec.step(prompt_ids[-1], return_logits=True)
             mk_logits = mk_logits.cpu()
         else:
+            if gen_step >= 2:
+                print(f"  step(prompt_last) ...", flush=True)
             dec.step(prompt_ids[-1])
+            if gen_step >= 2:
+                print(f"  step(prompt_last) done (pos={dec.position})", flush=True)
             for i in range(gen_step - 1):
+                if gen_step >= 2:
+                    print(f"  step(ref[{i}]) ...", flush=True)
                 dec.step(REF_GENERATED[i])
+                if gen_step >= 2:
+                    print(f"  step(ref[{i}]) done (pos={dec.position})", flush=True)
             print(f"Step {gen_step}: MK last step (position={dec.position}, return_logits)...", flush=True)
             _, mk_logits = dec.step(REF_GENERATED[gen_step - 1], return_logits=True)
             mk_logits = mk_logits.cpu()
@@ -81,9 +91,11 @@ def main():
 
         hf_top3 = hf_logits.topk(3)
         mk_top3 = mk_logits.topk(3)
-        status = "✓" if match else "✗ DIVERGED"
+        match_ref = (expected is not None and (hf_argmax == expected and mk_argmax == expected))
+        status = "✓" if match else "✗ HF≠MK"
+        ref_ok = " (matches ref)" if match_ref else (" (ref expected %s)" % expected if expected is not None else "")
         print(f"Step {gen_step:2d}:  HF argmax={hf_argmax:6d}  MK argmax={mk_argmax:6d}  "
-              f"expected={expected}  {status}", flush=True)
+              f"expected={expected}  {status}{ref_ok}", flush=True)
         if not match:
             print(f"         HF top3: {[(int(hf_top3.indices[i]), float(hf_top3.values[i])) for i in range(3)]}", flush=True)
             print(f"         MK top3: {[(int(mk_top3.indices[i]), float(mk_top3.values[i])) for i in range(3)]}", flush=True)
@@ -96,11 +108,13 @@ def main():
 
     print(flush=True)
     if first_divergence is not None:
-        print(f"First divergence at gen_step {first_divergence} (next token index {first_divergence}).", flush=True)
-        print(f"  → Bug is introduced when processing token at position {len(prompt_ids) + first_divergence - 1}", flush=True)
-        print(f"  → Check KV write at that position or attention over 0..{len(prompt_ids) + first_divergence - 1}", flush=True)
+        print(f"First divergence at gen_step {first_divergence} (HF vs MK disagree).", flush=True)
+        print(f"  → Bug in kernel at that step.", flush=True)
     else:
-        print("No divergence in the steps checked.", flush=True)
+        print("No divergence: HF and MK agree at every step checked.", flush=True)
+        print("  If expected (reference) differed at some step: reference was generated in a different", flush=True)
+        print("  environment (e.g. float32 vs bf16). Regenerate on this machine for parity:", flush=True)
+        print("    python parity_reference.py --model Qwen/Qwen3-0.6B", flush=True)
     return 0
 
 
