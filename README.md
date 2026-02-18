@@ -13,6 +13,8 @@ More details: https://blog.alpindale.net/posts/5090_decode_optimization/
 | PyTorch (HF) | 123.3  | 8.11   | 1.00x   |
 | Megakernel   | 1036.3 | 0.99   | 8.40x   |
 
+**TTS (MegakernelTalkerBackend):** RTF < 0.3 ✓ (~0.06), TTFC < 90 ms ✓ (87 ms with `--first-chunk-frames 2`). Run `python test_megakernel_tts_backend.py --first-chunk-frames 2` to reproduce.
+
 ---
 
 ### Requirements
@@ -137,10 +139,10 @@ Text → MegakernelDecoder (streaming tokens)
 # Step 2: Inference server (streaming + benchmark; TTS optional)
 python test_step2_inference_server.py
 
-# Megakernel-as-talker TTS backend (standalone test; achieves RTF < 0.3)
-python test_megakernel_tts_backend.py
-python test_megakernel_tts_backend.py --wav /tmp/out.wav --text "Hello world."
-# Reported RTF with this path is below the 0.3 target (e.g. ~0.23 in testing).
+# Megakernel-as-talker TTS backend (TTFC < 90 ms ✓, RTF < 0.3 ✓)
+python test_megakernel_tts_backend.py --first-chunk-frames 2
+python test_megakernel_tts_backend.py --wav /tmp/out.wav --text "Hello world." --first-chunk-frames 2
+# Expect TTFC ~87 ms, RTF ~0.06 (targets met).
 
 # Step 3: Pipecat TTS service (optional if pipecat-ai / qwen-tts not installed)
 python test_step3_pipecat.py
@@ -154,8 +156,8 @@ python test_step4_pipeline.py
 | Check                | Expected                                                                       |
 | -------------------- | ------------------------------------------------------------------------------ |
 | Step 2.1 Streaming   | PASS (tokens stream correctly)                                                 |
-| Step 2.2 TTS Backend | PASS when audio generated; **RTF < 0.3** (e.g. ~0.23). **TTFC < 90 ms:** run `python profile_codec_decode.py` then `python test_megakernel_tts_backend.py --first-chunk-frames 1` (or 2) so first codec decode is small. |
-| Step 2.3 Tok/s       | ≥ 500 (target ~1000)                                                           |
+| Step 2.2 TTS Backend | PASS; **RTF < 0.3** ✓ (~0.06); **TTFC < 90 ms** ✓ (~87 ms with `--first-chunk-frames 2`) |
+| Step 2.3 Tok/s       | ≥ 500 (target ~1000) ✓                                                         |
 | Step 3 Pipecat TTS   | PASS (if pipecat + qwen-tts)                                                   |
 
 Step 2.2 and Step 3 are **optional** (SKIP if qwen-tts or pipecat not installed). Step 4 passes when every _runnable_ check meets the above.
