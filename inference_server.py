@@ -183,23 +183,19 @@ class Qwen3TTSTalkerBackend:
         """
         # Qwen3-TTS Base model only has generate_voice_clone (no plain generate()).
         # Use default ref if none provided so text-only calls still work.
-        # Note: If default URL fails (403, network issues), TTS will fail gracefully.
         if ref_audio is None or ref_text is None:
-            # Try a different default URL that's more likely to work
-            ref_audio = ref_audio or (
-                "https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base/resolve/main/clone.wav"
-            )
-            if not ref_audio.startswith("http"):
-                # If not a URL, try HuggingFace Hub download
+            # Try HuggingFace Hub download first (more reliable than external URLs)
+            if ref_audio is None:
                 try:
                     from huggingface_hub import hf_hub_download
                     ref_audio = hf_hub_download(
                         repo_id="Qwen/Qwen3-TTS-12Hz-0.6B-Base",
                         filename="clone.wav",
-                        repo_type="model"
+                        repo_type="model",
                     )
                 except Exception:
-                    pass  # Will fail below with clearer error
+                    # Fallback to URL (may fail with 403, but worth trying)
+                    ref_audio = "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-TTS-Repo/clone.wav"
             
             ref_text = ref_text or (
                 "Okay. Yeah. I resent you. I love you. I respect you. "
