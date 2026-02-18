@@ -16,3 +16,5 @@ ninja>=1.11.0
 
 # Audio output for TTS integration (optional, not needed for parity check)
 soundfile>=0.12.0
+qwen-tts>=0.1.0
+pipecat-ai>=0.0.1
