@@ -182,6 +182,7 @@ def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
         lm_head_weight=lm_head_weight,
         cos_table=cos_table,
         sin_table=sin_table,
+        rope_theta_used=rope_theta,
     )
 
     torch.cuda.empty_cache()
@@ -216,6 +217,7 @@ class Decoder:
             weights, tokenizer = load_weights(model_name, verbose=verbose)
         self.tokenizer = tokenizer
         self._position = 0
+        self._rope_theta_used = weights.get("rope_theta_used")
 
         # Keep references so tensors stay alive (prevents GC of weight memory).
         self._weights = weights

@@ -120,6 +120,18 @@ def main(ref_path: Path, model_name: str) -> int:
         print(f"[ERROR] Decoder init failed: {e}", file=sys.stderr)
         return 2
 
+    # For Qwen3-0.6B, parity requires RoPE theta from rope_scaling (1000000), not config.rope_theta (10000)
+    if "0.6B" in model_name and "tts" not in model_name.lower():
+        rt = getattr(dec, "_rope_theta_used", None)
+        if rt is not None and abs(float(rt) - 1000000.0) > 1.0:
+            print(
+                f"\n  ⚠  RoPE theta used = {rt} (expected 1000000.0 for parity with reference).\n"
+                "     Fix: model.py must use config.rope_scaling['rope_theta'] for this model.\n",
+                file=sys.stderr,
+            )
+        elif rt is not None:
+            print(f"  ✓  RoPE theta = {rt} (correct for Qwen3-0.6B parity)")
+
     tokenizer = dec.tokenizer
 
     # ── Encode prompt and prefill ─────────────────────────────────────────────
