@@ -19,6 +19,7 @@ MAX_SEQ_LEN = 2048
 VOCAB_SIZE = 151936
 
 _decode = torch.ops.qwen_megakernel_C.decode
+_decode_with_logits = torch.ops.qwen_megakernel_C.decode_with_logits
 
 
 def _load_weights_tts(model_name: str, verbose: bool) -> tuple[dict, object, float]:
@@ -271,36 +272,65 @@ class Decoder:
     ) -> Union[int, Tuple[int, torch.Tensor]]:
         """Decode one token. Returns the next token id, or (token_id, logits) when return_logits=True."""
         rop = -1 if rope_position_override is None else int(rope_position_override)
-        logits_out = self._logits_buffer if return_logits else None
-        _decode(
-            self._out_token,
-            token_id,
-            self._embed_weight,
-            self._layer_weights_packed,
-            self._final_norm_weight,
-            self._lm_head_weight,
-            self._cos_table,
-            self._sin_table,
-            self._k_cache,
-            self._v_cache,
-            self._hidden,
-            self._act,
-            self._res,
-            self._q,
-            self._k,
-            self._v,
-            self._attn_out,
-            self._mlp_inter,
-            self._norm_out,
-            self._bmax_vals,
-            self._bmax_idxs,
-            NUM_LAYERS,
-            self._position,
-            MAX_SEQ_LEN,
-            self._attn_scale,
-            rop,
-            logits_out,
-        )
+        if return_logits:
+            _decode_with_logits(
+                self._out_token,
+                token_id,
+                self._embed_weight,
+                self._layer_weights_packed,
+                self._final_norm_weight,
+                self._lm_head_weight,
+                self._cos_table,
+                self._sin_table,
+                self._k_cache,
+                self._v_cache,
+                self._hidden,
+                self._act,
+                self._res,
+                self._q,
+                self._k,
+                self._v,
+                self._attn_out,
+                self._mlp_inter,
+                self._norm_out,
+                self._bmax_vals,
+                self._bmax_idxs,
+                NUM_LAYERS,
+                self._position,
+                MAX_SEQ_LEN,
+                self._attn_scale,
+                rop,
+                self._logits_buffer,
+            )
+        else:
+            _decode(
+                self._out_token,
+                token_id,
+                self._embed_weight,
+                self._layer_weights_packed,
+                self._final_norm_weight,
+                self._lm_head_weight,
+                self._cos_table,
+                self._sin_table,
+                self._k_cache,
+                self._v_cache,
+                self._hidden,
+                self._act,
+                self._res,
+                self._q,
+                self._k,
+                self._v,
+                self._attn_out,
+                self._mlp_inter,
+                self._norm_out,
+                self._bmax_vals,
+                self._bmax_idxs,
+                NUM_LAYERS,
+                self._position,
+                MAX_SEQ_LEN,
+                self._attn_scale,
+                rop,
+            )
         self._position += 1
         if return_logits:
             return self._out_token.item(), self._logits_buffer.clone()
