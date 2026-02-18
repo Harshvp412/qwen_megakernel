@@ -50,6 +50,9 @@ class Qwen3TTSPipecatService(TTSService):
     ):
         super().__init__(sample_rate=sample_rate, **kwargs)
         self._backend = backend
+        # Base TTSService sets _sample_rate only in start(); when used standalone
+        # (e.g. in tests) we need a valid rate for TTSAudioRawFrame.
+        self._sample_rate = sample_rate
 
     def _get_backend(self):
         if self._backend is not None:

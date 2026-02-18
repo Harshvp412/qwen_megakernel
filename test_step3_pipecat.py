@@ -83,6 +83,9 @@ async def test_tts_service_run_tts(write_wav: str | None) -> bool:
         return False
 
     sr = audio_frames[0].sample_rate
+    if not sr:
+        print("✗ TTSAudioRawFrame has sample_rate=0 (service may not have been started in a pipeline)")
+        return False
     duration_sec = total_bytes / (2 * sr)  # 16-bit = 2 bytes per sample, mono
     print(f"✓ Frame sequence: TTSStartedFrame → {len(audio_frames)} TTSAudioRawFrame(s) → TTSStoppedFrame")
     print(f"  Total audio: {total_bytes} bytes, {duration_sec:.2f}s @ {sr} Hz")
