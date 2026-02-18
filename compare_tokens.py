@@ -268,6 +268,9 @@ def main(ref_path: Path, model_name: str) -> int:
         print("  2. lm_head not loaded   — ensure state['lm_head.weight'] is used")
         print("  3. dtype mismatch       — verify all weights are bf16 on GPU")
         print("  4. KV cache not reset   — dec.reset() must be called before each run")
+        if rt_used is not None and abs(float(rt_used) - 1000000.0) <= 1.0:
+            print("  5. If RoPE is 1000000 and prompt_ids matched above: regenerate reference on this")
+            print("     machine with: python parity_reference.py --model " + model_name)
         return 1
 
 
