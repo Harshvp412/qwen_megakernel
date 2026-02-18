@@ -30,6 +30,9 @@ def main():
         sys.exit(1)
 
     backend = MegakernelTalkerBackend(verbose=True)
+    # Trigger one-time load so TTFC measures synthesis latency, not load time
+    backend.build_prompt_ids(text=args.text, language=args.language)
+    print("Starting synthesis (TTFC timer)...")
     t_start = time.perf_counter()
     ttfc_ms = None
     chunks = []
@@ -51,7 +54,7 @@ def main():
     print()
     print("Results:")
     print(f"  Chunks: {len(chunks)}, total samples: {total_samples}, sr: {sr}")
-    print(f"  TTFC (time to first chunk): {ttfc_ms:.0f} ms" if ttfc_ms is not None else "  TTFC: N/A (no chunks)")
+    print(f"  TTFC (time to first chunk, excludes model load): {ttfc_ms:.0f} ms" if ttfc_ms is not None else "  TTFC: N/A (no chunks)")
     print(f"  Elapsed: {elapsed:.2f} s, audio duration: {duration_s:.2f} s, RTF: {rtf:.2f}")
     if chunks:
         print("  First chunk shape:", chunks[0][0].shape)
