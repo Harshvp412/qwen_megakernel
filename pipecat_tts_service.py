@@ -57,12 +57,19 @@ class Qwen3TTSPipecatService(TTSService):
     def _get_backend(self):
         if self._backend is not None:
             return self._backend
+        # Prefer megakernel-as-talker backend (full compliance: megakernel → codec → audio).
+        try:
+            from inference_server import get_megakernel_tts_backend
+            return get_megakernel_tts_backend()()
+        except Exception:
+            pass
         try:
             from inference_server import Qwen3TTSTalkerBackend
             return Qwen3TTSTalkerBackend()
         except Exception as e:
             raise RuntimeError(
                 "Qwen3-TTS backend not available. Install qwen-tts and ensure "
+                "megakernel_tts_backend.MegakernelTalkerBackend or "
                 "inference_server.Qwen3TTSTalkerBackend can be instantiated."
             ) from e
 

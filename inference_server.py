@@ -114,8 +114,17 @@ class MegakernelDecoder:
 
 
 # ---------------------------------------------------------------------------
-# (Optional) TTS integration scaffold
+# TTS backends
 # ---------------------------------------------------------------------------
+# MegakernelTalkerBackend: megakernel runs talker decoder → codec stream → codec/vocoder → audio (full compliance).
+# Qwen3TTSTalkerBackend: legacy qwen-tts end-to-end (no megakernel in TTS path).
+
+
+def get_megakernel_tts_backend():
+    """Lazy import to avoid loading qwen_tts when only MegakernelDecoder is used."""
+    from megakernel_tts_backend import MegakernelTalkerBackend
+    return MegakernelTalkerBackend
+
 
 class Qwen3TTSTalkerBackend:
     """

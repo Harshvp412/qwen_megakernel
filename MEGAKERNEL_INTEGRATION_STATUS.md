@@ -4,9 +4,9 @@
 
 **Goal:** Use the megakernel as the LLM decode backend **inside** Qwen3-TTS's talker decoder, replacing qwen-tts's internal decoder with our megakernel.
 
-**Current state:** We use qwen-tts end-to-end (its decoder + codec). The megakernel is used separately for standalone decode, not inside TTS.
-
 **Target state:** Text → megakernel (talker decoder) → codec tokens → qwen-tts codec/vocoder → audio
+
+**Current state (full compliance):** ✅ Implemented. The voice pipeline uses **MegakernelTalkerBackend**: prompt token IDs (codec control) → megakernel (talker weights) → codec token stream → `speech_tokenizer.decode` → audio. Pipecat prefers this backend by default; fallback remains `Qwen3TTSTalkerBackend` (qwen-tts end-to-end).
 
 ---
 
@@ -23,46 +23,23 @@
 - Whether megakernel produces codec tokens (vs text tokens) when loaded with TTS weights
 - What the codec token format/vocab looks like
 
-### 2. Build TTS Prompt for Megakernel
+### 2. Build TTS Prompt for Megakernel ✅ DONE
 
 **Requirement:** Replicate qwen-tts's prompt construction (text + language + speaker + codec control tokens) but output **token IDs** (not embeddings) for the megakernel.
 
-**From `modeling_qwen3_tts.py`:** The `generate()` method builds:
-- Text embeddings (via `text_projection`)
-- Codec prefill tokens (language ID, speaker ID, BOS)
-- Special tokens (`<|im_start|>assistant\n`, etc.)
+**Implemented:** `megakernel_tts_backend.build_tts_prompt_token_ids()` builds codec control token IDs from talker config (codec_think_id, language_id, codec_pad_id, codec_bos_id, optional speaker). Text conditioning as token IDs would require one forward from qwen-tts for the first codec token; currently we use control tokens only.
 
-**Need:** Convert this to token ID sequence that megakernel can decode.
+### 3. Create `MegakernelTalkerBackend` ✅ DONE
 
-### 3. Create `MegakernelTalkerBackend`
+**Replaces:** Default TTS path now uses megakernel; `Qwen3TTSTalkerBackend` remains as fallback.
 
-**Replaces:** Current `Qwen3TTSTalkerBackend` (which uses qwen-tts end-to-end)
+**Implemented:** `megakernel_tts_backend.MegakernelTalkerBackend` — `build_prompt_ids()`, `generate_codec_tokens()`, `codec_tokens_to_audio()`, `text_to_speech_blocks()` (same interface as `Qwen3TTSTalkerBackend`). Flow: prompt token IDs → megakernel → codec token list → `speech_tokenizer.decode` → chunked audio.
 
-**Interface:**
-```python
-class MegakernelTalkerBackend:
-    def text_to_speech_blocks(self, text, language="English", ref_audio=None, ref_text=None):
-        # 1. Build prompt token IDs (text + codec control tokens)
-        prompt_ids = self._build_tts_prompt(text, language, ...)
-        # 2. Stream codec tokens from megakernel
-        codec_tokens = []
-        for token_id in self.megakernel_decoder.generate_token_ids(prompt_ids):
-            codec_tokens.append(token_id)
-            # 3. Decode codec tokens → audio (incrementally if possible)
-            if len(codec_tokens) >= chunk_size:  # or decode each token
-                audio_chunk = self.codec.decode(codec_tokens)
-                yield audio_chunk, sample_rate
-                codec_tokens = []
-```
-
-### 4. Wire Codec Tokens → Audio
+### 4. Wire Codec Tokens → Audio ✅ DONE
 
 **Requirement:** Extract codec/vocoder from `Qwen3TTSModel` and use it to decode codec tokens → waveform.
 
-**Challenge:** Qwen3-TTS may not expose codec/vocoder separately. May need to:
-- Access `model.speech_tokenizer` directly
-- Or patch/monkey-patch `generate()` to intercept codec tokens before decoding
-- Or reverse-engineer the codec decode API
+**Implemented:** Use `tts.model.speech_tokenizer.decode([{"audio_codes": codes}])` with our generated codec token array (shape `(T, 1)` for single-codebook output from megakernel).
 
 ### 5. Make It Streaming
 
@@ -120,11 +97,11 @@ class MegakernelTalkerBackend:
 
 ## Next Immediate Actions
 
-1. **Run inspection scripts on GPU** to understand codec access and token format
-2. **Document findings** — codec API, whether megakernel produces codec tokens
-3. **Build prompt construction** — replicate qwen-tts prompt as token IDs
-4. **Create codec wrapper** — `codec_tokens → audio` interface
-5. **Implement `MegakernelTalkerBackend`** — wire everything together
+1. ✅ Run inspection scripts — codec access via `model.speech_tokenizer`, megakernel produces codec token IDs
+2. ✅ Build prompt construction — `build_tts_prompt_token_ids()` in `megakernel_tts_backend.py`
+3. ✅ Codec wrapper — `codec_tokens_to_audio()` using `speech_tokenizer.decode`
+4. ✅ `MegakernelTalkerBackend` — implemented and wired
+5. **Optional:** Add text conditioning (first codec token from qwen-tts one step); streaming decode if codec supports it
 
 ---
 

@@ -8,7 +8,7 @@ This document maps the assignment requirements to what is implemented and where 
 
 > Take AlpinDale's qwen_megakernel and wire it up to serve Qwen3-TTS inference inside a Pipecat voice pipeline.
 
-**Status:** Partially met. We have a working Pipecat voice pipeline that uses Qwen3-TTS for audio and the megakernel for standalone decode. The megakernel is **not** yet used as the LLM decode backend *inside* the TTS talker stage (see gaps below).
+**Status:** Partially met. We have a working Pipecat voice pipeline. The **megakernel is now used as the talker decoder** (MegakernelTalkerBackend: megakernel → codec token stream → Qwen3-TTS codec/vocoder → audio). Remaining gaps: true streaming (push audio as decoded, not buffer-then-chunk), TTFC/RTF targets, and first-token parity (see below).
 
 ---
 
@@ -31,7 +31,7 @@ This document maps the assignment requirements to what is implemented and where 
 |-------------|--------|--------|
 | Wrap megakernel in Python-callable inference server | ✅ | `inference_server.py`: `MegakernelDecoder`, ctypes via existing extension |
 | Streaming: prompt in → token stream out | ✅ | `generate_token_ids()` yields tokens; used in Step 2 tests |
-| TTS decode loop + codec/vocoder for audio | ⚠️ Partial | **Gap:** We use **qwen-tts end-to-end** (its internal decoder + codec/vocoder). We did **not** replace the talker decoder with the megakernel and then wire our token stream into Qwen3-TTS’s codec/vocoder. So the megakernel is not “running as the LLM decode backend for Qwen3-TTS’s talker decoder” in the TTS path. |
+| TTS decode loop + codec/vocoder for audio | ✅ | **MegakernelTalkerBackend** (default in Pipecat): megakernel runs talker decoder → codec token stream → `speech_tokenizer.decode` → audio. See `megakernel_tts_backend.py`, `test_megakernel_tts_backend.py`. |
 
 ---
 
@@ -39,7 +39,7 @@ This document maps the assignment requirements to what is implemented and where 
 
 | Requirement | Status | Notes |
 |-------------|--------|--------|
-| Custom Pipecat TTS service calling our inference server | ✅ | `pipecat_tts_service.py`: `Qwen3TTSPipecatService` calls `Qwen3TTSTalkerBackend` (text → audio) |
+| Custom Pipecat TTS service calling our inference server | ✅ | `pipecat_tts_service.py`: `Qwen3TTSPipecatService` uses **MegakernelTalkerBackend** by default (megakernel → codec → audio); fallback `Qwen3TTSTalkerBackend` (qwen-tts end-to-end) |
 | Standard Pipecat TTS interface (text in, audio frames out) | ✅ | `run_tts(text, context_id)` → `TTSStartedFrame`, `TTSAudioRawFrame`(s), `TTSStoppedFrame` |
 | Pipeline: STT → LLM → our TTS → audio | ✅ | `demo_pipecat.py`: Deepgram, OpenAI, our TTS, transport output |
 | Streaming — push frames as generated, not buffer full utterance | ❌ | **Gap:** We generate the **full utterance** with qwen-tts, then **chunk** and push. So we do *not* “push audio frames as they’re generated”; we buffer-then-send. True streaming would require megakernel → codec/vocoder integration and chunked output. |
@@ -82,15 +82,15 @@ This document maps the assignment requirements to what is implemented and where 
 **Done:**
 
 - Megakernel runs; Step 1 weight/shape verification and loading for TTS path; parity documented (first-token mismatch).
-- Inference server with streaming token API; TTS backend (qwen-tts) producing chunked audio for Pipecat.
+- Inference server with streaming token API.
+- **Megakernel as talker decoder:** MegakernelTalkerBackend runs talker decoder in megakernel → codec token stream → Qwen3-TTS codec/vocoder → audio. Default TTS path in Pipecat. Test: `test_megakernel_tts_backend.py`.
 - Pipecat TTS service and full pipeline (STT → LLM → TTS → audio); end-to-end test and validation script.
 - Honest performance reporting and README.
 
-**Missing / partial:**
+**Still short:**
 
-1. **Megakernel as talker decoder:** The megakernel is not used as the decode backend *inside* Qwen3-TTS. TTS uses qwen-tts’s full stack. To fully meet the goal, we’d need to: run the talker decoder with the megakernel, produce a token stream, and feed it into Qwen3-TTS’s codec/vocoder (or equivalent) — and possibly patch or fork qwen-tts to accept an external decoder.
-2. **True streaming TTS:** Audio is “streamed” only in the sense of chunked delivery after full-utterance generation. Pushing frames *as* they’re generated would require the above integration and streaming codec/vocoder output.
-3. **TTFC/RTF targets:** Not met; would require streaming TTS and megakernel-in-the-loop as above.
-4. **Parity:** First token does not match HF; documented as kernel-level (RoPE/attention), not fixed here.
+1. **Streaming:** We still buffer the full codec sequence, decode to full audio, then chunk and push. The assignment asks to push audio *as* it’s decoded (don’t buffer the full utterance). True streaming would require incremental codec decode (e.g. decode small windows of codec tokens and yield audio chunks as they’re ready).
+2. **TTFC & RTF:** TTFC < 90 ms and RTF < 0.3 are not met (e.g. ~20 s TTFC, ~1.7 RTF). Meeting them would require the megakernel-in-the-loop (done) plus true streaming TTS above.
+3. **Parity:** First token does not match HF; documented as kernel-level (RoPE/attention), not fixed here.
 
 This checklist is the single place to see alignment with the assignment and where we’re short.

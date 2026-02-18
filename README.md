@@ -118,15 +118,15 @@ automatically at load time by `parity_reference.py`.
 
 The repo wires the megakernel into a voice pipeline:
 
-- **Step 2** — `inference_server.py`: `MegakernelDecoder` (streaming token generation), `Qwen3TTSTalkerBackend` (text → audio via qwen-tts).
-- **Step 3** — `pipecat_tts_service.py`: `Qwen3TTSPipecatService` (Pipecat TTS that uses the backend).
+- **Step 2** — `inference_server.py`: `MegakernelDecoder` (streaming token generation). TTS: `MegakernelTalkerBackend` (megakernel as talker → codec → audio) preferred; `Qwen3TTSTalkerBackend` (qwen-tts end-to-end) fallback.
+- **Step 3** — `pipecat_tts_service.py`: `Qwen3TTSPipecatService` (Pipecat TTS; uses megakernel-as-talker backend by default).
 - **Step 4** — Full pipeline test and docs: run all steps and check expected results.
 
 **Architecture**
 
 ```
-Text → MegakernelDecoder (streaming tokens)  [optional: TTS uses same decoder family]
-     → Qwen3TTSTalkerBackend (text → audio chunks)
+Text → MegakernelDecoder (streaming tokens)
+     → MegakernelTalkerBackend (megakernel talker → codec tokens → codec/vocoder → audio chunks)
      → Qwen3TTSPipecatService (Pipecat frames)
      → demo_pipecat: STT (Deepgram) → LLM (OpenAI) → TTS (Qwen3) → audio out
 ```
@@ -136,6 +136,10 @@ Text → MegakernelDecoder (streaming tokens)  [optional: TTS uses same decoder 
 ```bash
 # Step 2: Inference server (streaming + benchmark; TTS optional)
 python test_step2_inference_server.py
+
+# Megakernel-as-talker TTS backend (standalone test)
+python test_megakernel_tts_backend.py
+python test_megakernel_tts_backend.py --wav /tmp/out.wav --text "Hello world."
 
 # Step 3: Pipecat TTS service (optional if pipecat-ai / qwen-tts not installed)
 python test_step3_pipecat.py
