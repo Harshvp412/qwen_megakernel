@@ -4,7 +4,8 @@
 
 - **RoPE theta**: Confirmed 1000000.0 in kernel (cos/sin tables). Matches Qwen3-0.6B.
 - **Position**: Prefill uses positions 0..N-1; first decode step uses position N-1 for RoPE and KV write. Matches HF (last-token position_id = N-1).
-- **RoPE override**: Using `rope_position_override=len(prompt)` for the first gen step was tried; it made the first token worse (32671 vs 1112). Reverted; no override is used. Without override, megakernel first token is 1112 (HF's #4 choice); full parity still fails (20/20 differ). Remaining gap likely bf16 accumulation order or a small kernel bug.
+- **LM head**: Step() uses logits+argmax path (not fused argmax) so the chosen token matches HF. First token and first 5 generated tokens now match.
+- **Current parity**: First 5 generated tokens match; first mismatch at generated token index 5 (reference 9625 " France", megakernel 15344 " Italy"). Divergence then grows. Likely cause: KV cache write/read or attention accumulation once cache has 10+ positions; or bf16 drift over steps.
 
 ## Verified in code
 
@@ -63,5 +64,5 @@ If these differ, tokenizer or prompt encoding differs → regenerate reference o
 
 ## Next steps
 
-- Run `debug_parity_logits.py`: it prints both no-override and override=len(prompt) first tokens and their rank in HF top-10.
-- Megakernel (no override) first token is HF's #4 → small numerical/ordering gap (bf16 or argmax tie). To get exact parity, consider: returning logits from kernel for comparison, or running HF in bf16 with same reduction order; or auditing attention/lm_head for subtle bugs.
+- **If parity fails after a few tokens**: First 5 match then diverge → compare KV cache (and/or hidden state) with HF after step 5 (e.g. dump `dec._k_cache` / `dec._v_cache` and HF’s past_key_values at the same position) to see if a slot is wrong or if attention scores drift.
+- **Logits comparison**: `python compare_logits.py` compares HF vs megakernel first-token logits (and confirms argmax match when using logits path).
