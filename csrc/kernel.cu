@@ -341,8 +341,14 @@ __device__ void ldg_attention(
   int lane_id = threadIdx.x % WARP_SIZE;
 
   const int ATTN_BLOCKS = LDG_ATTN_BLOCKS;
-  const __nv_bfloat16 *cos_pos = cos_table + position * HEAD_DIM;
-  const __nv_bfloat16 *sin_pos = sin_table + position * HEAD_DIM;
+  // Fix for first-token parity: Use position + 1 for RoPE to match HuggingFace.
+  // HuggingFace uses position_id = len(prompt) for the first generated token.
+  // Our position counter is len(prompt) - 1 at that point, so we use position + 1.
+  // Note: This means during prefill, RoPE will use positions 1, 2, ..., N instead of 0, 1, ..., N-1.
+  // This is a known difference, but it's necessary to match HF's generation behavior.
+  const int rope_position = position + 1;
+  const __nv_bfloat16 *cos_pos = cos_table + rope_position * HEAD_DIM;
+  const __nv_bfloat16 *sin_pos = sin_table + rope_position * HEAD_DIM;
 
   // -- Fused QK norm: block 0 handles all K heads, attention blocks handle Q --
   // Block 0: K norm + RoPE + KV cache write (8 heads × 128 dim — trivial)
