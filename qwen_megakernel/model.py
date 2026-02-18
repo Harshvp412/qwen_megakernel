@@ -18,6 +18,51 @@ VOCAB_SIZE = 151936
 _decode = torch.ops.qwen_megakernel_C.decode
 
 
+def _load_weights_tts(model_name: str, verbose: bool) -> tuple[dict, object, float]:
+    """Load TTS model via qwen_tts, extract talker decoder state, and return (state_dict, tokenizer).
+    State dict uses megakernel key names: model.embed_tokens.weight, model.layers.*, model.norm.weight, lm_head.weight.
+    """
+    from qwen_tts import Qwen3TTSModel  # type: ignore[import-untyped]
+
+    if verbose:
+        print(f"Loading TTS model (talker decoder): {model_name}...")
+    tts_model = Qwen3TTSModel.from_pretrained(
+        model_name,
+        torch_dtype=torch.bfloat16,
+        device_map="cuda" if torch.cuda.is_available() else "cpu",
+    )
+    # Talker state_dict: keys like model.codec_embedding.weight, model.layers.*, model.norm.weight, codec_head.weight
+    raw = tts_model.talker.state_dict()
+    state = {}
+    for k, v in raw.items():
+        if not (k.startswith("model.") or k.startswith("codec_head.")):
+            continue  # skip code_predictor, text_projection, etc.
+        if k == "model.codec_embedding.weight":
+            state["model.embed_tokens.weight"] = v.contiguous()
+        elif k == "codec_head.weight":
+            state["lm_head.weight"] = v.contiguous()
+        elif k.startswith("model."):
+            state[k] = v.contiguous() if hasattr(v, "contiguous") else v
+    # Tokenizer: TTS repo may not expose AutoTokenizer; try same repo then fallback to Qwen3-0.6B
+    try:
+        from transformers import AutoTokenizer
+
+        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    except Exception:
+        from transformers import AutoTokenizer
+
+        tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B", trust_remote_code=True)
+        if verbose:
+            print("   Using Qwen/Qwen3-0.6B tokenizer (TTS repo tokenizer not available).")
+    # RoPE from talker config
+    rope_theta = float(getattr(tts_model.talker.config, "rope_theta", 10000.0))
+    if verbose:
+        print(f"RoPE theta: {rope_theta}")
+    del tts_model
+    torch.cuda.empty_cache()
+    return state, tokenizer, rope_theta
+
+
 def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
     """Load Qwen3-0.6B or Qwen3-TTS weights from HuggingFace into GPU tensors."""
     if not verbose:
@@ -25,15 +70,6 @@ def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
 
         os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
         os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
-
-    # Register qwen3_tts architecture if needed (for TTS models)
-    if "tts" in model_name.lower() or "TTS" in model_name:
-        try:
-            from qwen_tts import Qwen3TTSModel  # noqa: F401 - triggers config/model registration in transformers
-        except ImportError:
-            if verbose:
-                print("⚠️  qwen-tts package not found. Install with: pip install qwen-tts")
-                print("   Continuing anyway - may fail if model requires it...")
 
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from transformers.utils import logging as hf_logging
@@ -51,26 +87,29 @@ def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
         except Exception:
             pass
 
-    if verbose:
-        print(f"Loading {model_name}...")
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name, torch_dtype=torch.bfloat16, device_map="cuda", trust_remote_code=True
-    )
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    state = model.state_dict()
+    is_tts = "tts" in model_name.lower() or "TTS" in model_name
+    if is_tts:
+        try:
+            state, tokenizer, rope_theta = _load_weights_tts(model_name, verbose)
+        except ImportError as e:
+            if verbose:
+                print("⚠️  qwen-tts required for TTS models. Install with: pip install qwen-tts")
+            raise e
+    else:
+        if verbose:
+            print(f"Loading {model_name}...")
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name, torch_dtype=torch.bfloat16, device_map="cuda", trust_remote_code=True
+        )
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        state = model.state_dict()
+        rope_theta = float(getattr(model.config, "rope_theta", 10000.0))
+        if verbose:
+            print(f"RoPE theta: {rope_theta}")
+        del model
+        torch.cuda.empty_cache()
 
-    # Resolve RoPE theta from config.rope_theta.
-    #
-    # For rope_type='default', HuggingFace transformers uses config.rope_theta
-    # (= 10000) directly.  config.rope_scaling['rope_theta'] (= 1000000) is
-    # only used by dynamic/yarn/llama3 rope types — NOT 'default'.  Using the
-    # wrong value (1000000) produces completely degenerate output.
-    rope_theta = float(getattr(model.config, "rope_theta", 10000.0))
-
-    if verbose:
-        print(f"RoPE theta: {rope_theta}")
-
-    # RoPE tables — computed in f32, stored as bf16 on GPU.
+    # RoPE tables (rope_theta already set above from config or TTS talker config) — computed in f32, stored as bf16 on GPU.
     inv_freq = 1.0 / (
         rope_theta ** (torch.arange(0, HEAD_DIM, 2, dtype=torch.float32) / HEAD_DIM)
     )
