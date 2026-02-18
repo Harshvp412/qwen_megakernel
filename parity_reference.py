@@ -59,7 +59,7 @@ from pathlib import Path
 DEFAULT_MODEL  = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
 PROMPT         = "The capital of France is"
 MAX_NEW_TOKENS = 20
-OUTPUT_FILE    = Path(__file__).parent / "parity_reference_output.json"
+OUTPUT_FILE    = Path(__file__).resolve().parent / "parity_reference_output.json"
 
 # Megakernel compile-time constants — used for config cross-check only.
 MK_HIDDEN_SIZE        = 1024
@@ -419,7 +419,16 @@ if __name__ == "__main__":
         default=DEFAULT_MODEL,
         help=f"HuggingFace model id or local path (default: {DEFAULT_MODEL})",
     )
+    parser.add_argument(
+        "--output",
+        "-o",
+        default=None,
+        help="Output JSON path (default: parity_reference_output.json next to this script)",
+    )
     args = parser.parse_args()
+
+    out_path = Path(args.output).resolve() if args.output else OUTPUT_FILE
+    print(f"Output file: {out_path}\n")
 
     try:
         result = run(args.model)
@@ -449,6 +458,10 @@ if __name__ == "__main__":
             print(f"\n[ERROR] {e}", file=sys.stderr)
         sys.exit(1)
 
-    OUTPUT_FILE.write_text(json.dumps(result, indent=2))
-    print(f"Ground truth saved → {OUTPUT_FILE}")
-    print("Next: copy parity_reference_output.json to GPU machine for Step 2B.")
+    try:
+        out_path.write_text(json.dumps(result, indent=2))
+        print(f"Ground truth saved → {out_path}")
+        print("Next: copy parity_reference_output.json to GPU machine for Step 2B.")
+    except OSError as e:
+        print(f"\n[ERROR] Could not write output to {out_path}:\n  {e}", file=sys.stderr)
+        sys.exit(1)
