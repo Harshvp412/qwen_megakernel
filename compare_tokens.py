@@ -159,12 +159,14 @@ def main(ref_path: Path, model_name: str) -> int:
     # ── Generate max_tokens using single-step decode ──────────────────────────
     # Using step() (not generate()) so we collect each individual token id
     # before EOS pruning — matching exactly what the reference script captures.
+    # First gen step: use rope_position_override=len(prompt_ids) to match HF position_id for first decoded token.
     import torch
     print(f"\nRunning megakernel for {max_tokens} tokens...")
     mk_ids = []
-    tok = prompt_ids[-1]
+    tok = dec.step(prompt_ids[-1], rope_position_override=len(prompt_ids))
+    mk_ids.append(tok)
     with torch.no_grad():
-        for _ in range(max_tokens):
+        for _ in range(max_tokens - 1):
             tok = dec.step(tok)
             mk_ids.append(tok)
 

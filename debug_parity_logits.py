@@ -70,7 +70,8 @@ def main():
     dec.reset()
     for tid in prompt_ids[:-1]:
         dec.step(tid)
-    mk_token = dec.step(prompt_ids[-1])
+    # First gen step: use RoPE at len(prompt_ids) to match HF (first-token parity)
+    mk_token = dec.step(prompt_ids[-1], rope_position_override=len(prompt_ids))
     print(f"Megakernel first token: {mk_token} ({tokenizer.decode([mk_token], skip_special_tokens=False)})")
 
     # --- Compare ---

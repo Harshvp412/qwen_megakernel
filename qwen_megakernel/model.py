@@ -1,7 +1,10 @@
 """Weight loading and high-level decode API for Qwen3-0.6B."""
 
+from __future__ import annotations
+
 import math
 import struct
+from typing import Optional
 
 import torch
 
@@ -259,8 +262,15 @@ class Decoder:
         self._bmax_idxs = torch.empty(4096, dtype=torch.int32, device="cuda")
         self._out_token = torch.empty(1, dtype=torch.int32, device="cuda")
 
-    def step(self, token_id: int) -> int:
-        """Decode one token. Returns the next token id."""
+    def step(
+        self,
+        token_id: int,
+        rope_position_override: Optional[int] = None,
+    ) -> int:
+        """Decode one token. Returns the next token id.
+        When rope_position_override is set (e.g. len(prompt) for first gen step), use it for RoPE indexing to match HF.
+        """
+        rop = -1 if rope_position_override is None else int(rope_position_override)
         _decode(
             self._out_token,
             token_id,
@@ -287,6 +297,7 @@ class Decoder:
             self._position,
             MAX_SEQ_LEN,
             self._attn_scale,
+            rop,
         )
         self._position += 1
         return self._out_token.item()

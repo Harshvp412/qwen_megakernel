@@ -323,6 +323,7 @@ __device__ void ldg_attention(
     const __nv_bfloat16 *__restrict__ k_norm_weight,
     const __nv_bfloat16 *__restrict__ cos_table,
     const __nv_bfloat16 *__restrict__ sin_table, int position,
+    int rope_position,  // use for cos/sin only; when -1 or same as position, use position
     // Weights to prefetch during attention (for blocks not doing attention)
     const __nv_bfloat16 *__restrict__ o_weight,
     const __nv_bfloat16 *__restrict__ gate_weight,
@@ -341,8 +342,9 @@ __device__ void ldg_attention(
   int lane_id = threadIdx.x % WARP_SIZE;
 
   const int ATTN_BLOCKS = LDG_ATTN_BLOCKS;
-  const __nv_bfloat16 *cos_pos = cos_table + position * HEAD_DIM;
-  const __nv_bfloat16 *sin_pos = sin_table + position * HEAD_DIM;
+  int rp = (rope_position >= 0) ? rope_position : position;
+  const __nv_bfloat16 *cos_pos = cos_table + rp * HEAD_DIM;
+  const __nv_bfloat16 *sin_pos = sin_table + rp * HEAD_DIM;
 
   // -- Fused QK norm: block 0 handles all K heads, attention blocks handle Q --
   // Block 0: K norm + RoPE + KV cache write (8 heads × 128 dim — trivial)
@@ -1258,7 +1260,7 @@ __launch_bounds__(LDG_BLOCK_SIZE, 1) ldg_decode_kernel_persistent(
 
     ldg_attention(grid, g_q, g_k, g_v, layer_k_cache, layer_v_cache, g_attn_out,
                   cache_len, max_seq_len, attn_scale, w.q_norm_weight,
-                  w.k_norm_weight, cos_table, sin_table, position,
+                  w.k_norm_weight, cos_table, sin_table, position, position,
                   w.o_proj_weight, w.gate_proj_weight, w.up_proj_weight,
                   w.down_proj_weight, kv_flag, attn_flag, layer);
 
@@ -1325,8 +1327,9 @@ __global__ void __launch_bounds__(LDG_BLOCK_SIZE, 1) ldg_decode_kernel_direct(
     unsigned int *__restrict__ barrier_sense,
     unsigned int *__restrict__ kv_flag, unsigned int *__restrict__ attn_flag,
     int num_layers, int position, int input_token_id, int max_seq_len,
-    float attn_scale) {
+    float attn_scale, int rope_position_override) {
   int cache_len = position + 1;
+  int rope_pos = (rope_position_override >= 0) ? rope_position_override : position;
   int block_id = blockIdx.x;
   int num_blocks = gridDim.x;
 
@@ -1373,7 +1376,7 @@ __global__ void __launch_bounds__(LDG_BLOCK_SIZE, 1) ldg_decode_kernel_direct(
 
     ldg_attention(grid, g_q, g_k, g_v, layer_k_cache, layer_v_cache, g_attn_out,
                   cache_len, max_seq_len, attn_scale, w.q_norm_weight,
-                  w.k_norm_weight, cos_table, sin_table, position,
+                  w.k_norm_weight, cos_table, sin_table, position, rope_pos,
                   w.o_proj_weight, w.gate_proj_weight, w.up_proj_weight,
                   w.down_proj_weight, kv_flag, attn_flag, layer);
 
@@ -1482,7 +1485,7 @@ extern "C" void launch_ldg_decode_direct(
     void *g_residual, void *g_q, void *g_k, void *g_v, void *g_attn_out,
     void *g_mlp_intermediate, void *g_normalized, void *block_max_vals,
     void *block_max_idxs, int num_layers, int position, int max_seq_len,
-    float attn_scale, cudaStream_t stream) {
+    float attn_scale, int rope_position_override, cudaStream_t stream) {
   ldg_configure_kernel_attributes();
   ensure_barrier_alloc();
 
@@ -1495,7 +1498,7 @@ extern "C" void launch_ldg_decode_direct(
       (float *)g_residual, (float *)g_q, (float *)g_k, (float *)g_v,
       (float *)g_attn_out, (float *)g_mlp_intermediate, (float *)g_normalized,
       d_barrier_counter, d_barrier_sense, d_kv_flag, d_attn_flag, num_layers,
-      position, input_token_id, max_seq_len, attn_scale);
+      position, input_token_id, max_seq_len, attn_scale, rope_position_override);
 
   cudaMemsetAsync(d_lm_head_counter, 0, sizeof(unsigned int), stream);
   ldg_lm_head_fused<<<LDG_LM_NUM_BLOCKS, LDG_LM_BLOCK_SIZE, 0, stream>>>(
