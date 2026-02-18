@@ -32,6 +32,8 @@ def main():
     backend = MegakernelTalkerBackend(verbose=True)
     # Trigger one-time load so TTFC measures synthesis latency, not load time
     backend.build_prompt_ids(text=args.text, language=args.language)
+    # Warmup codec decode (first call may have CUDA init overhead)
+    backend.codec_tokens_to_audio([0])
     print("Starting synthesis (TTFC timer)...")
     t_start = time.perf_counter()
     ttfc_ms = None

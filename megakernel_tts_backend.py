@@ -156,6 +156,14 @@ class MegakernelTalkerBackend:
             out = np.zeros((codes.shape[0], num_layers), dtype=np.int64)
             out[:, 0] = codes[:, 0]
             codes = out
+        # Warmup: first decode call may have CUDA init overhead; do a dummy decode if not already warmed
+        if not hasattr(self, "_codec_warmed"):
+            dummy_codes = np.zeros((1, num_layers), dtype=np.int64)
+            try:
+                self._speech_tokenizer.decode([{"audio_codes": dummy_codes}])
+            except Exception:
+                pass
+            self._codec_warmed = True
         wavs_list, sample_rate = self._speech_tokenizer.decode([{"audio_codes": codes}])
         wav = wavs_list[0]
         if isinstance(wav, np.ndarray):
