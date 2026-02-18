@@ -174,12 +174,67 @@ def main(ref_path: Path, model_name: str) -> int:
         print("══════════════════════════════════════")
         return 0
     else:
+        # Find first mismatching token index
+        first_mismatch_idx = None
+        for i, (r, m) in enumerate(zip(ref_ids, mk_ids)):
+            if r != m:
+                first_mismatch_idx = i
+                break
+        
         mismatches = sum(
             1 for r, m in zip(ref_ids, mk_ids) if r != m
         ) + abs(len(ref_ids) - len(mk_ids))
+        
         print("══════════════════════════════════════════════════════════")
         print(f"  Parity: FALSE  ✗  {mismatches}/{max_tokens} token(s) differ")
         print("══════════════════════════════════════════════════════════")
+        
+        if first_mismatch_idx is not None:
+            print(f"\n🔍 DIAGNOSIS:")
+            print(f"   First mismatch at token index: {first_mismatch_idx}")
+            print(f"   Reference token[{first_mismatch_idx}]: {ref_ids[first_mismatch_idx]} ({tokenizer.decode([ref_ids[first_mismatch_idx]], skip_special_tokens=True)})")
+            print(f"   Megakernel token[{first_mismatch_idx}]: {mk_ids[first_mismatch_idx]} ({tokenizer.decode([mk_ids[first_mismatch_idx]], skip_special_tokens=True)})")
+            
+            # Diagnose based on WHERE mismatch occurs
+            print(f"\n📊 ROOT CAUSE ANALYSIS:")
+            if first_mismatch_idx == 0:
+                print("   ⚠️  Mismatch at token 0 (first generated token)")
+                print("   → Likely cause: RoPE application or attention Q@K computation")
+                print("   → Check: RoPE table indexing, position counter, Q/K rotation")
+                print("   → Action: Verify cos_table/sin_table are correct for each position")
+            elif first_mismatch_idx >= len(ref_ids) - 3:
+                print(f"   ⚠️  Mismatch at token {first_mismatch_idx} (near end)")
+                print("   → Likely cause: LM head projection or argmax")
+                print("   → Check: lm_head.weight dtype, shape, loading")
+                print("   → Action: Verify lm_head_weight is bf16 and matches HF state_dict")
+            else:
+                # Check if mismatch grows over time
+                mismatch_indices = [i for i, (r, m) in enumerate(zip(ref_ids, mk_ids)) if r != m]
+                if len(mismatch_indices) > 1:
+                    grows = all(mismatch_indices[i] < mismatch_indices[i+1] for i in range(len(mismatch_indices)-1))
+                    if grows and len(mismatch_indices) > 3:
+                        print(f"   ⚠️  Mismatch starts at token {first_mismatch_idx}, grows over time")
+                        print("   → Likely cause: KV cache corruption or attention accumulation error")
+                        print("   → Check: KV cache write/read indexing, attention softmax stability")
+                        print("   → Action: Verify k_cache/v_cache are written at correct positions")
+                    else:
+                        print(f"   ⚠️  Mismatch at token {first_mismatch_idx} (middle)")
+                        print("   → Likely cause: Attention computation or hidden state drift")
+                        print("   → Check: Attention scores, softmax, MLP output")
+                else:
+                    print(f"   ⚠️  Single mismatch at token {first_mismatch_idx}")
+                    print("   → Likely cause: Numerical precision or specific token edge case")
+            
+            print(f"\n🔧 FIX CHECKLIST:")
+            print(f"   1. Verify RoPE theta matches: model.config.rope_theta = {dec._cos_table.shape[0] // 128}")
+            print(f"   2. Check position counter: dec.position = {dec.position} (expected: {len(prompt_ids) + max_tokens})")
+            print(f"   3. Verify KV cache shape: {dec._k_cache.shape} (expected: [28, 8, 2048, 128])")
+            print(f"   4. Check hidden state: mean={dec._hidden.abs().mean().item():.6f}, std={dec._hidden.std().item():.6f}")
+            if dec._hidden.abs().mean().item() < 0.001:
+                print("      ⚠️  Hidden state too small — transformer layers may be broken")
+            if dec._hidden.abs().mean().item() > 1000:
+                print("      ⚠️  Hidden state too large — numerical overflow")
+        
         print("\nCommon causes:")
         print("  1. rope_theta mismatch  — check model.py inv_freq base")
         print("  2. lm_head not loaded   — ensure state['lm_head.weight'] is used")
