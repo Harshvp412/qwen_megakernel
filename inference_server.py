@@ -183,20 +183,45 @@ class Qwen3TTSTalkerBackend:
         """
         # Qwen3-TTS Base model only has generate_voice_clone (no plain generate()).
         # Use default ref if none provided so text-only calls still work.
+        # Note: If default URL fails (403, network issues), TTS will fail gracefully.
         if ref_audio is None or ref_text is None:
+            # Try a different default URL that's more likely to work
             ref_audio = ref_audio or (
-                "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-TTS-Repo/clone.wav"
+                "https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base/resolve/main/clone.wav"
             )
+            if not ref_audio.startswith("http"):
+                # If not a URL, try HuggingFace Hub download
+                try:
+                    from huggingface_hub import hf_hub_download
+                    ref_audio = hf_hub_download(
+                        repo_id="Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+                        filename="clone.wav",
+                        repo_type="model"
+                    )
+                except Exception:
+                    pass  # Will fail below with clearer error
+            
             ref_text = ref_text or (
                 "Okay. Yeah. I resent you. I love you. I respect you. "
                 "But you know what? You blew it! And thanks to you."
             )
-        wavs, sr = self._tts_model.generate_voice_clone(
-            text=text,
-            language=language,
-            ref_audio=ref_audio,
-            ref_text=ref_text,
-        )
+        
+        try:
+            wavs, sr = self._tts_model.generate_voice_clone(
+                text=text,
+                language=language,
+                ref_audio=ref_audio,
+                ref_text=ref_text,
+            )
+        except Exception as e:
+            # If ref_audio download fails, provide helpful error
+            if "HTTPError" in str(type(e).__name__) or "403" in str(e) or "Forbidden" in str(e):
+                raise RuntimeError(
+                    f"Failed to load reference audio from {ref_audio}. "
+                    "This may be due to network restrictions or URL access issues. "
+                    "Provide a local audio file path or a publicly accessible URL for ref_audio."
+                ) from e
+            raise
 
         # Convert to tensor (wavs may be list of np.ndarray or single array)
         if isinstance(wavs, list):
