@@ -155,11 +155,17 @@ def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
     else:
         lm_head_weight = embed_weight
 
-    assert lm_head_weight.shape == (VOCAB_SIZE, HIDDEN_SIZE), (
-        f"lm_head.weight shape {tuple(lm_head_weight.shape)} != "
-        f"expected ({VOCAB_SIZE}, {HIDDEN_SIZE}). "
-        "Update VOCAB_SIZE / HIDDEN_SIZE constants if using a different model."
-    )
+    if is_tts:
+        # TTS talker codec_head may use a different vocab size (e.g. 3072 for 12Hz); only require hidden size.
+        assert lm_head_weight.shape[1] == HIDDEN_SIZE, (
+            f"lm_head.weight shape {tuple(lm_head_weight.shape)} has hidden_size {lm_head_weight.shape[1]} != {HIDDEN_SIZE}."
+        )
+    else:
+        assert lm_head_weight.shape == (VOCAB_SIZE, HIDDEN_SIZE), (
+            f"lm_head.weight shape {tuple(lm_head_weight.shape)} != "
+            f"expected ({VOCAB_SIZE}, {HIDDEN_SIZE}). "
+            "Update VOCAB_SIZE / HIDDEN_SIZE constants if using a different model."
+        )
 
     weights = dict(
         embed_weight=embed_weight,
@@ -170,7 +176,6 @@ def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
         sin_table=sin_table,
     )
 
-    del model
     torch.cuda.empty_cache()
     return weights, tokenizer
 
