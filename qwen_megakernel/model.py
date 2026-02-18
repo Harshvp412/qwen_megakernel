@@ -113,7 +113,11 @@ def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
         )
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         state = model.state_dict()
+        # Resolve effective RoPE theta: Qwen3 uses rope_scaling.rope_theta (e.g. 1000000), not config.rope_theta (10000)
         rope_theta = float(getattr(model.config, "rope_theta", 10000.0))
+        rope_scaling = getattr(model.config, "rope_scaling", None)
+        if isinstance(rope_scaling, dict) and "rope_theta" in rope_scaling:
+            rope_theta = float(rope_scaling["rope_theta"])
         if verbose:
             print(f"RoPE theta: {rope_theta}")
         del model
