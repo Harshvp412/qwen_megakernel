@@ -8,6 +8,12 @@ it produces codec tokens (not text tokens) that can be fed to the codec/vocoder.
 
 import sys
 
+# Register qwen3_tts architecture in transformers before loading TTS model
+try:
+    from qwen_tts import Qwen3TTSModel  # noqa: F401 - triggers config/model registration
+except ImportError:
+    pass
+
 try:
     from qwen_megakernel.model import Decoder
 except ImportError:

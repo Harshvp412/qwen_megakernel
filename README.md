@@ -146,12 +146,12 @@ python test_step4_pipeline.py
 
 **Expected results (Step 4)**
 
-| Check                | Expected                                                   |
-| -------------------- | ---------------------------------------------------------- |
-| Step 2.1 Streaming   | PASS (tokens stream correctly)                             |
+| Check                | Expected                                                                       |
+| -------------------- | ------------------------------------------------------------------------------ |
+| Step 2.1 Streaming   | PASS (tokens stream correctly)                                                 |
 | Step 2.2 TTS Backend | PASS when audio generated (TTFC/RTF reported; <90ms/<0.3 for future streaming) |
-| Step 2.3 Tok/s       | ≥ 500 (target ~1000)                                       |
-| Step 3 Pipecat TTS   | PASS (if pipecat + qwen-tts)                               |
+| Step 2.3 Tok/s       | ≥ 500 (target ~1000)                                                           |
+| Step 3 Pipecat TTS   | PASS (if pipecat + qwen-tts)                                                   |
 
 Step 2.2 and Step 3 are **optional** (SKIP if qwen-tts or pipecat not installed). Step 4 passes when every _runnable_ check meets the above.
 

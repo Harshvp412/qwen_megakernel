@@ -32,20 +32,37 @@ def inspect_codec_structure():
     )
     
     print("\n" + "-" * 60)
-    print("Model Components:")
+    print("Model Components (top-level attributes):")
     print("-" * 60)
-    for name, module in model.named_children():
-        print(f"  {name}: {type(module).__name__}")
+    for name in dir(model):
+        if name.startswith("_"):
+            continue
+        try:
+            obj = getattr(model, name)
+            if not callable(obj):
+                print(f"  {name}: {type(obj).__name__}")
+        except Exception:
+            pass
     
     print("\n" + "-" * 60)
     print("Talker Components:")
     print("-" * 60)
     if hasattr(model, 'talker'):
         talker = model.talker
-        for name, module in talker.named_children():
-            print(f"  talker.{name}: {type(module).__name__}")
-            if name == 'model':
-                print(f"    (decoder layers: {len(module.layers) if hasattr(module, 'layers') else 'N/A'})")
+        if hasattr(talker, 'named_children'):
+            for name, module in talker.named_children():
+                print(f"  talker.{name}: {type(module).__name__}")
+                if name == 'model' and hasattr(module, 'layers'):
+                    print(f"    (decoder layers: {len(module.layers)})")
+        else:
+            for name in dir(talker):
+                if name.startswith("_"): continue
+                try:
+                    obj = getattr(talker, name)
+                    if not callable(obj):
+                        print(f"  talker.{name}: {type(obj).__name__}")
+                except Exception:
+                    pass
     
     print("\n" + "-" * 60)
     print("Speech Tokenizer (Codec/Vocoder):")

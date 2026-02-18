@@ -29,7 +29,7 @@ def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
     # Register qwen3_tts architecture if needed (for TTS models)
     if "tts" in model_name.lower() or "TTS" in model_name:
         try:
-            import qwen_tts  # noqa: F401 - registers qwen3_tts architecture
+            from qwen_tts import Qwen3TTSModel  # noqa: F401 - triggers config/model registration in transformers
         except ImportError:
             if verbose:
                 print("⚠️  qwen-tts package not found. Install with: pip install qwen-tts")
