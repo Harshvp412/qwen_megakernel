@@ -184,40 +184,57 @@ class Qwen3TTSTalkerBackend:
         # Qwen3-TTS Base model only has generate_voice_clone (no plain generate()).
         # Use default ref if none provided so text-only calls still work.
         if ref_audio is None or ref_text is None:
-            # Try HuggingFace Hub download first (more reliable than external URLs)
+            # Try to download default ref_audio from HuggingFace Hub to a local file
             if ref_audio is None:
+                import os
+                import tempfile
+                
+                # Try HuggingFace Hub download
                 try:
                     from huggingface_hub import hf_hub_download
                     ref_audio = hf_hub_download(
                         repo_id="Qwen/Qwen3-TTS-12Hz-0.6B-Base",
                         filename="clone.wav",
                         repo_type="model",
+                        local_files_only=False,  # Force download attempt
                     )
-                except Exception:
-                    # Fallback to URL (may fail with 403, but worth trying)
-                    ref_audio = "https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-TTS-Repo/clone.wav"
+                    # Verify file exists
+                    if not os.path.exists(ref_audio):
+                        raise FileNotFoundError(f"Downloaded file not found: {ref_audio}")
+                except Exception as e:
+                    # If download fails, create a minimal silence file as fallback
+                    # (qwen-tts needs SOME audio file, even if minimal)
+                    import numpy as np
+                    import soundfile as sf
+                    
+                    temp_dir = tempfile.gettempdir()
+                    fallback_audio = os.path.join(temp_dir, "qwen_tts_fallback_ref.wav")
+                    
+                    # Create 1 second of silence at 24kHz (Qwen3-TTS sample rate)
+                    silence = np.zeros(24000, dtype=np.float32)
+                    try:
+                        sf.write(fallback_audio, silence, 24000)
+                        ref_audio = fallback_audio
+                        print(f"⚠️  Using fallback silence audio: {fallback_audio}")
+                    except Exception:
+                        # Last resort: raise with helpful message
+                        raise RuntimeError(
+                            "Could not download or create reference audio. "
+                            "Please provide ref_audio parameter with a local WAV file path, "
+                            "or ensure network access to HuggingFace Hub."
+                        ) from e
             
             ref_text = ref_text or (
                 "Okay. Yeah. I resent you. I love you. I respect you. "
                 "But you know what? You blew it! And thanks to you."
             )
         
-        try:
-            wavs, sr = self._tts_model.generate_voice_clone(
-                text=text,
-                language=language,
-                ref_audio=ref_audio,
-                ref_text=ref_text,
-            )
-        except Exception as e:
-            # If ref_audio download fails, provide helpful error
-            if "HTTPError" in str(type(e).__name__) or "403" in str(e) or "Forbidden" in str(e):
-                raise RuntimeError(
-                    f"Failed to load reference audio from {ref_audio}. "
-                    "This may be due to network restrictions or URL access issues. "
-                    "Provide a local audio file path or a publicly accessible URL for ref_audio."
-                ) from e
-            raise
+        wavs, sr = self._tts_model.generate_voice_clone(
+            text=text,
+            language=language,
+            ref_audio=ref_audio,
+            ref_text=ref_text,
+        )
 
         # Convert to tensor (wavs may be list of np.ndarray or single array)
         if isinstance(wavs, list):
