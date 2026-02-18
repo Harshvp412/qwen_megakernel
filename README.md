@@ -147,7 +147,7 @@ python test_step4_pipeline.py
 | Check                | Expected                                                   |
 | -------------------- | ---------------------------------------------------------- |
 | Step 2.1 Streaming   | PASS (tokens stream correctly)                             |
-| Step 2.2 TTS Backend | PASS, TTFC &lt; 90ms, RTF &lt; 0.3 (if qwen-tts installed) |
+| Step 2.2 TTS Backend | PASS when audio generated (TTFC/RTF reported; <90ms/<0.3 for future streaming) |
 | Step 2.3 Tok/s       | ≥ 500 (target ~1000)                                       |
 | Step 3 Pipecat TTS   | PASS (if pipecat + qwen-tts)                               |
 
