@@ -50,9 +50,23 @@ def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     state = model.state_dict()
 
-    # RoPE tables
+    # Resolve effective RoPE theta from model config.
+    #
+    # Qwen3 stores the true theta inside config.rope_scaling['rope_theta']
+    # (= 1000000), not in config.rope_theta (= 10000).  Reading it here
+    # guarantees correctness for any model variant without hardcoding.
+    _rs = getattr(model.config, "rope_scaling", None)
+    if isinstance(_rs, dict) and "rope_theta" in _rs:
+        rope_theta = float(_rs["rope_theta"])
+    else:
+        rope_theta = float(getattr(model.config, "rope_theta", 10000.0))
+
+    if verbose:
+        print(f"RoPE theta: {rope_theta}")
+
+    # RoPE tables — computed in f32, stored as bf16 on GPU.
     inv_freq = 1.0 / (
-        10000.0 ** (torch.arange(0, HEAD_DIM, 2, dtype=torch.float32) / HEAD_DIM)
+        rope_theta ** (torch.arange(0, HEAD_DIM, 2, dtype=torch.float32) / HEAD_DIM)
     )
     positions = torch.arange(MAX_SEQ_LEN, dtype=torch.float32)
     freqs = torch.outer(positions, inv_freq)
@@ -80,11 +94,27 @@ def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
         )
 
     embed_weight = state["model.embed_tokens.weight"].contiguous()
+
+    # Explicit lm_head.weight load with shape guard.
+    # Never alias embed_weight when the separate tensor exists: transformers 5.x
+    # stores both as distinct allocations even when tie_word_embeddings=True.
+    # For TTS variants with a different vocab head this will load the correct tensor.
+    if "lm_head.weight" in state:
+        lm_head_weight = state["lm_head.weight"].contiguous()
+    else:
+        lm_head_weight = embed_weight
+
+    assert lm_head_weight.shape == (VOCAB_SIZE, HIDDEN_SIZE), (
+        f"lm_head.weight shape {tuple(lm_head_weight.shape)} != "
+        f"expected ({VOCAB_SIZE}, {HIDDEN_SIZE}). "
+        "Update VOCAB_SIZE / HIDDEN_SIZE constants if using a different model."
+    )
+
     weights = dict(
         embed_weight=embed_weight,
         layer_weights=layer_weights,
         final_norm_weight=state["model.norm.weight"].contiguous(),
-        lm_head_weight=embed_weight,  # tied embeddings
+        lm_head_weight=lm_head_weight,
         cos_table=cos_table,
         sin_table=sin_table,
     )
