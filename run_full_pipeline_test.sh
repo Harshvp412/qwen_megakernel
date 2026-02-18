@@ -22,8 +22,6 @@ echo "=============================================="
 echo "3. Install core dependencies"
 echo "=============================================="
 pip install -r requirements.txt
-# Optional (can conflict with transformers>=5): pip install qwen-tts
-# For full TTS + Pipecat tests, install qwen-tts; use a separate venv if needed.
 
 echo ""
 echo "=============================================="

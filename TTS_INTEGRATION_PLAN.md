@@ -89,7 +89,7 @@ Integrate AlpinDale's qwen_megakernel as the LLM decode backend for Qwen3-TTS ta
 - `test_step4_pipeline.py`: runs Step 2 + Step 3 and asserts expected results (tok/s ≥ 500, TTFC < 90ms, RTF < 0.3)
 
 **Task 4.2: Documentation**
-- README.md updated with: pipeline architecture, run instructions (test_step2/3/4, demo_pipecat), expected results table, known limitations (parity, qwen-tts/transformers conflict, streaming TTS)
+- README.md updated with: pipeline architecture, run instructions (test_step2/3/4, demo_pipecat), expected results table, known limitations (parity, streaming TTS)
 
 **Task 4.3: Demo**
 - `demo_pipecat.py`: STT (Deepgram) → LLM (OpenAI) → TTS (Qwen3) → audio; run with `python demo_pipecat.py` (requires API keys + qwen-tts)

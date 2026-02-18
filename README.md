@@ -168,7 +168,7 @@ Open the URL printed (e.g. WebRTC client), connect, and talk. Pipeline: Deepgram
 **Known limitations**
 
 - **Parity:** First-token mismatch vs HuggingFace is documented; cause is in CUDA kernel (RoPE/attention), not Python. Decoder is still usable.
-- **qwen-tts vs transformers:** `qwen-tts` pins `transformers==4.57.3`; this repo’s `requirements.txt` uses `transformers>=5.0.0`. Use one env for megakernel-only and a separate env (or manual install) for full TTS/Pipecat.
+- **transformers version:** Pinned to `4.57.3` so `qwen-tts` installs in the same env; model loading uses `torch_dtype=` for compatibility.
 - **Streaming TTS:** Current TTS path generates full utterance then chunks; true streaming (token-by-token to audio) is not wired yet.
 
 ---

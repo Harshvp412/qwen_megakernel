@@ -343,13 +343,12 @@ def run(model_name: str) -> dict:
               f"= {total_len} > MK_MAX_SEQ_LEN ({MK_MAX_SEQ_LEN})")
 
     # ── Load model ───────────────────────────────────────────────────────────
-    # NOTE: transformers 5.x deprecated torch_dtype=; use dtype= instead.
-    # This matches what the megakernel's model.py already uses correctly.
+    # Use torch_dtype= for compatibility with transformers 4.57.x (required by qwen-tts).
     print(f"Loading model weights (device={device}, dtype={dtype})...")
     t0    = time.perf_counter()
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        dtype=dtype,
+        torch_dtype=dtype,
         device_map=device,
         trust_remote_code=True,
     )

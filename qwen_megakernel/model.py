@@ -54,7 +54,7 @@ def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
     if verbose:
         print(f"Loading {model_name}...")
     model = AutoModelForCausalLM.from_pretrained(
-        model_name, dtype=torch.bfloat16, device_map="cuda", trust_remote_code=True
+        model_name, torch_dtype=torch.bfloat16, device_map="cuda", trust_remote_code=True
     )
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     state = model.state_dict()
