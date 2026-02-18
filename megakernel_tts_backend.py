@@ -135,8 +135,9 @@ class MegakernelTalkerBackend:
         self._ensure_loaded()
         import numpy as np
 
-        # 12Hz tokenizer expects num_quantizers layers (e.g. 16); megakernel produces one codebook.
-        # Replicate the single codebook across layers so decode accepts it (quality may vary).
+        # 12Hz tokenizer expects num_quantizers layers (e.g. 16); megakernel produces one (semantic) codebook.
+        # Put our codes in layer 0 only; fill other layers with 0 to avoid out-of-range CUDA asserts
+        # (each layer has its own codebook; replicating our IDs to all layers can be invalid).
         num_layers = 16
         try:
             dec = getattr(self._speech_tokenizer, "model", None) and getattr(
@@ -150,7 +151,9 @@ class MegakernelTalkerBackend:
         if codes.ndim == 1:
             codes = np.expand_dims(codes, axis=1)
         if codes.shape[1] != num_layers:
-            codes = np.tile(codes, (1, num_layers))
+            out = np.zeros((codes.shape[0], num_layers), dtype=np.int64)
+            out[:, 0] = codes[:, 0]
+            codes = out
         wavs_list, sample_rate = self._speech_tokenizer.decode([{"audio_codes": codes}])
         wav = wavs_list[0]
         if isinstance(wav, np.ndarray):
