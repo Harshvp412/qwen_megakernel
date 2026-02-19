@@ -273,6 +273,13 @@ class Decoder:
         """Decode one token. Returns the next token id, or (token_id, logits) when return_logits=True.
         Always uses logits+argmax path so token matches HuggingFace (avoids fused lm_head reduction bug).
         """
+        token_id = int(token_id)
+        if token_id < 0 or token_id >= VOCAB_SIZE:
+            token_id = max(0, min(token_id, VOCAB_SIZE - 1))
+        if self._position < 0 or self._position >= MAX_SEQ_LEN:
+            raise RuntimeError(
+                f"position {self._position} out of range [0, {MAX_SEQ_LEN}); call reset() before a new sequence"
+            )
         rop = -1 if rope_position_override is None else int(rope_position_override)
         _decode_with_logits(
             self._out_token,
@@ -303,7 +310,13 @@ class Decoder:
             rop,
             self._logits_buffer,
         )
-        torch.cuda.synchronize()  # ensure kernel completes before next step (helps avoid reorder/race)
+        try:
+            torch.cuda.synchronize()
+        except torch.cuda.AcceleratorError as e:
+            raise RuntimeError(
+                "CUDA kernel error during decode. For exact fault location run with: "
+                "CUDA_LAUNCH_BLOCKING=1"
+            ) from e
         self._position += 1
         if return_logits:
             return self._out_token.item(), self._logits_buffer.clone()
