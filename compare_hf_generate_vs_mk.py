@@ -72,14 +72,14 @@ def main():
     first_diff = None
     for i in range(NUM_TOKENS):
         match = hf_ids[i] == mk_ids[i]
-        sym = "✓" if match else "✗"
+        sym = "PASS" if match else "FAIL"
         if not match and first_diff is None:
             first_diff = i
         print(f"  [{i:2d}]  HF={hf_ids[i]:6d}  MK={mk_ids[i]:6d}  {sym}")
     print()
     if first_diff is not None:
         print(f"First mismatch at index {first_diff}: HF={hf_ids[first_diff]} ({tokenizer.decode([hf_ids[first_diff]])})  MK={mk_ids[first_diff]} ({tokenizer.decode([mk_ids[first_diff]])})")
-        print("→ Megakernel does not match HF generate() at this position; kernel fix needed.")
+        print("Megakernel does not match HF generate() at this position; kernel fix needed.")
     else:
         print("Parity: HF generate() and MK match for all tokens.")
     return 0

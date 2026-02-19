@@ -107,7 +107,7 @@ def load_weights(model_name="Qwen/Qwen3-0.6B", verbose: bool = True):
             state, tokenizer, rope_theta = _load_weights_tts(model_name, verbose)
         except ImportError as e:
             if verbose:
-                print("⚠️  qwen-tts required for TTS models. Install with: pip install qwen-tts")
+                print("[WARN] qwen-tts required for TTS models. Install with: pip install qwen-tts")
             raise e
     else:
         if verbose:

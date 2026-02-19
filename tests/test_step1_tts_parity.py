@@ -21,7 +21,7 @@ def test_tts_model_load():
         import qwen_tts
         from transformers import AutoConfig
         
-        print("✓ qwen-tts package installed")
+        print("PASS qwen-tts package installed")
         
         # Try to load config
         try:
@@ -29,18 +29,18 @@ def test_tts_model_load():
                 "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
                 trust_remote_code=True
             )
-            print(f"✓ TTS config loaded: {config.model_type}")
+            print(f"PASS TTS config loaded: {config.model_type}")
             print(f"  vocab_size: {config.vocab_size}")
             print(f"  hidden_size: {config.hidden_size}")
             print(f"  num_layers: {config.num_hidden_layers}")
             return True
         except Exception as e:
-            print(f"✗ TTS config load failed: {e}")
+            print(f"FAIL TTS config load failed: {e}")
             print("  → Will use Qwen3-0.6B as fallback")
             return False
             
     except ImportError:
-        print("✗ qwen-tts not installed")
+        print("FAIL qwen-tts not installed")
         print("  → Will use Qwen3-0.6B as fallback")
         return False
 
@@ -60,12 +60,12 @@ def test_megakernel_decoder():
         
         print(f"\nLoading decoder with model: {model_name}")
         decoder = Decoder(model_name=model_name, verbose=True)
-        print("✓ Decoder loaded successfully")
+        print("PASS Decoder loaded successfully")
         
         return decoder
         
     except Exception as e:
-        print(f"✗ Decoder load failed: {e}")
+        print(f"FAIL Decoder load failed: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -78,7 +78,7 @@ def test_basic_generation(decoder):
     print("=" * 60)
     
     if decoder is None:
-        print("✗ Skipping - decoder not loaded")
+        print("FAIL Skipping - decoder not loaded")
         return False
     
     prompt = "The capital of France is"
@@ -104,11 +104,11 @@ def test_basic_generation(decoder):
         
         full_text = decoder.tokenizer.decode(generated, skip_special_tokens=True)
         print(f"\nGenerated text: {repr(full_text)}")
-        print("✓ Basic generation works")
+        print("PASS Basic generation works")
         return True
         
     except Exception as e:
-        print(f"✗ Generation failed: {e}")
+        print(f"FAIL Generation failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -142,7 +142,7 @@ def main():
     print("STEP 1 TEST SUMMARY")
     print("=" * 60)
     for name, passed in results:
-        status = "✓ PASS" if passed else "✗ FAIL"
+        status = "PASS" if passed else "FAIL"
         print(f"  {name:30} {status}")
     
     all_passed = all(r[1] for r in results)
@@ -150,7 +150,7 @@ def main():
     if all_passed:
         print("✅ STEP 1 COMPLETE - Ready for Step 2")
     else:
-        print("⚠️  STEP 1 INCOMPLETE - Some tests failed")
+        print("STEP 1 INCOMPLETE - Some tests failed")
         print("   Proceeding anyway with fallback (Qwen3-0.6B)")
     print("=" * 60 + "\n")
     

@@ -65,7 +65,7 @@ def main():
         print("  First chunk shape:", chunks[0][0].shape)
     if ttfc_ms is not None:
         target_ttfc = 90
-        print(f"  TTFC < {target_ttfc} ms: {'✓' if ttfc_ms < target_ttfc else '✗'}")
+        print(f"  TTFC < {target_ttfc} ms: {'PASS' if ttfc_ms < target_ttfc else 'FAIL'}")
 
     if args.wav and chunks:
         import numpy as np

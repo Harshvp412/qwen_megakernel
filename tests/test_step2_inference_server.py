@@ -24,7 +24,7 @@ def test_megakernel_decoder_streaming():
         from inference_server import MegakernelDecoder, DecodeConfig
         
         decoder = MegakernelDecoder(model_name="Qwen/Qwen3-0.6B", verbose=True)
-        print("✓ MegakernelDecoder initialized")
+        print("PASS MegakernelDecoder initialized")
         
         prompt = "The capital of France is"
         config = DecodeConfig(max_new_tokens=10, stop_on_eos=True)
@@ -42,7 +42,7 @@ def test_megakernel_decoder_streaming():
         total_time = time.perf_counter() - start
         tok_per_sec = len(tokens) / total_time if total_time > 0 else 0
         
-        print(f"\n✓ Generated {len(tokens)} tokens in {total_time*1000:.2f}ms")
+        print(f"\nPASS Generated {len(tokens)} tokens in {total_time*1000:.2f}ms")
         print(f"  Tokens/sec: {tok_per_sec:.1f}")
         
         full_text = decoder.tokenizer.decode(tokens, skip_special_tokens=True)
@@ -51,7 +51,7 @@ def test_megakernel_decoder_streaming():
         return True, tok_per_sec
         
     except Exception as e:
-        print(f"✗ Streaming test failed: {e}")
+        print(f"FAIL Streaming test failed: {e}")
         import traceback
         traceback.print_exc()
         return False, 0.0
@@ -67,7 +67,7 @@ def test_tts_backend():
         from inference_server import Qwen3TTSTalkerBackend
         
         backend = Qwen3TTSTalkerBackend()
-        print("✓ Qwen3TTSTalkerBackend initialized")
+        print("PASS Qwen3TTSTalkerBackend initialized")
         
         text = "Hello, this is a test of the TTS system."
         print(f"\nGenerating audio for: {repr(text)}")
@@ -89,7 +89,7 @@ def test_tts_backend():
             duration_sec = total_samples / chunks[0][1] if chunks[0][1] > 0 else 0
             rtf = total_time / duration_sec if duration_sec > 0 else 0
             
-            print(f"\n✓ Generated {len(chunks)} audio chunks")
+            print(f"\nPASS Generated {len(chunks)} audio chunks")
             print(f"  Total samples: {total_samples}")
             print(f"  Audio duration: {duration_sec:.2f}s")
             print(f"  Generation time: {total_time:.2f}s")
@@ -98,24 +98,24 @@ def test_tts_backend():
             
             return True, first_chunk_time, rtf
         else:
-            print("✗ No audio chunks generated")
+            print("FAIL No audio chunks generated")
             return False, None, None
             
     except ImportError as e:
-        print(f"⚠️  TTS backend not available: {e}")
+        print(f"SKIP TTS backend not available: {e}")
         print("   (qwen-tts may not be installed or compatible)")
         return None, None, None
     except RuntimeError as e:
         if "qwen-tts is not installed" in str(e) or "qwen_tts" in str(e):
-            print(f"⚠️  TTS backend skipped: {e}")
+            print(f"SKIP TTS backend skipped: {e}")
             print("   Install with: pip install qwen-tts (optional for Step 2)")
             return None, None, None
-        print(f"✗ TTS backend test failed: {e}")
+        print(f"FAIL TTS backend test failed: {e}")
         import traceback
         traceback.print_exc()
         return False, None, None
     except Exception as e:
-        print(f"✗ TTS backend test failed: {e}")
+        print(f"FAIL TTS backend test failed: {e}")
         import traceback
         traceback.print_exc()
         return False, None, None
@@ -132,7 +132,7 @@ def test_performance_benchmark():
         
         print("Loading decoder (this may take a moment if GPU memory is full)...")
         decoder = MegakernelDecoder(model_name="Qwen/Qwen3-0.6B", verbose=False)
-        print("✓ Decoder loaded")
+        print("PASS Decoder loaded")
         
         prompt = "The capital of France is"
         config = DecodeConfig(max_new_tokens=100)
@@ -155,19 +155,19 @@ def test_performance_benchmark():
             tokens = list(decoder.generate_token_ids(prompt, config=config))
             elapsed = time.perf_counter() - start
             times.append(elapsed)
-            print(f"✓ {len(tokens)} tokens in {elapsed*1000:.2f}ms ({len(tokens)/elapsed:.1f} tok/s)")
+            print(f"PASS {len(tokens)} tokens in {elapsed*1000:.2f}ms ({len(tokens)/elapsed:.1f} tok/s)")
         
         avg_time = sum(times) / len(times)
         avg_tok_per_sec = config.max_new_tokens / avg_time
         
-        print(f"\n✓ Average: {avg_time*1000:.2f}ms for {config.max_new_tokens} tokens")
+        print(f"\nPASS Average: {avg_time*1000:.2f}ms for {config.max_new_tokens} tokens")
         print(f"  Average tokens/sec: {avg_tok_per_sec:.1f}")
         print(f"  Target: ~1000 tok/s (from megakernel benchmark)")
         
         return avg_tok_per_sec
         
     except Exception as e:
-        print(f"✗ Benchmark failed: {e}")
+        print(f"FAIL Benchmark failed: {e}")
         import traceback
         traceback.print_exc()
         return 0.0
@@ -193,8 +193,8 @@ def main():
         results.append(("TTS Backend", tts_result[0]))
         if tts_result[0]:
             ttfc, rtf = tts_result[1], tts_result[2]
-            print(f"\n  TTFC: {ttfc*1000:.1f}ms {'✓' if ttfc < 0.09 else '✗'} (target < 90ms)")
-            print(f"  RTF: {rtf:.3f} {'✓' if rtf < 0.3 else '✗'} (target < 0.3)")
+            print(f"\n  TTFC: {ttfc*1000:.1f}ms {'PASS' if ttfc < 0.09 else 'FAIL'} (target < 90ms)")
+            print(f"  RTF: {rtf:.3f} {'PASS' if rtf < 0.3 else 'FAIL'} (target < 0.3)")
     
     # Test 2.3: Performance
     perf_tok_per_sec = test_performance_benchmark()
@@ -206,9 +206,9 @@ def main():
     print("=" * 60)
     for name, passed in results:
         if passed is None:
-            status = "⚠ SKIP"
+            status = "SKIP"
         else:
-            status = "✓ PASS" if passed else "✗ FAIL"
+            status = "PASS" if passed else "FAIL"
         print(f"  {name:30} {status}")
     
     # Check critical tests
@@ -217,7 +217,7 @@ def main():
     if critical_passed:
         print("✅ STEP 2 COMPLETE - Ready for Step 3 (Pipecat)")
     else:
-        print("⚠️  STEP 2 INCOMPLETE - Some tests failed")
+        print("STEP 2 INCOMPLETE - Some tests failed")
         print("   Review errors above before proceeding")
     print("=" * 60 + "\n")
     

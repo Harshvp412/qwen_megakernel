@@ -39,3 +39,7 @@ Thumbs.db
 *.bin
 *.safetensors
 .ref/
+
+# Assignment submission: exclude internal/dev artifacts
+scripts/
+.env

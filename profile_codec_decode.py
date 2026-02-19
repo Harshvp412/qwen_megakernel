@@ -74,8 +74,8 @@ def main():
             t1 = time.perf_counter()
             times_ms.append((t1 - t0) * 1000)
         avg = sum(times_ms) / len(times_ms)
-        ok = "✓" if avg < target_ttfc_ms else "✗"
-        print(f"  {n:3d} frames  →  {avg:7.1f} ms avg  {ok} (target < {target_ttfc_ms} ms)")
+        ok = "PASS" if avg < target_ttfc_ms else "FAIL"
+        print(f"  {n:3d} frames  {avg:7.1f} ms avg  {ok} (target < {target_ttfc_ms} ms)")
     print("-" * 50)
     print("\nRecommendation: Use first_chunk_frames = smallest n where latency < 90 ms for TTFC.")
     return 0

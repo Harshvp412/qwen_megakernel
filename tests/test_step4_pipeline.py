@@ -17,6 +17,10 @@ Exit 0 if all runnable checks meet expectations; 1 otherwise.
 
 import asyncio
 import sys
+from pathlib import Path
+
+# Allow imports of sibling test modules when run as tests/test_step4_pipeline.py from repo root
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
 def main():
@@ -99,10 +103,10 @@ def main():
     all_passed = True
     for name, passed, detail in results:
         if passed is None:
-            status = "⚠ SKIP"
+            status = "SKIP"
             all_passed = all_passed  # skip doesn't fail overall
         else:
-            status = "✓ PASS" if passed else "✗ FAIL"
+            status = "PASS" if passed else "FAIL"
             if not passed:
                 all_passed = False
         expected_str = "PASS / targets met" if passed is True else ("SKIP" if passed is None else "FAIL")
@@ -114,7 +118,7 @@ def main():
     if all_passed:
         print("✅ STEP 4 COMPLETE — All runnable checks meet expected results")
     else:
-        print("⚠️  STEP 4 INCOMPLETE — One or more checks failed or did not meet targets")
+        print("STEP 4 INCOMPLETE - One or more checks failed or did not meet targets")
         print("   Fix failures above or install optional deps (qwen-tts, pipecat) to run full pipeline.")
     print("=" * 60 + "\n")
 

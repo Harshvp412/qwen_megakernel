@@ -224,7 +224,7 @@ class Qwen3TTSTalkerBackend:
                     try:
                         sf.write(fallback_audio, silence, 24000)
                         ref_audio = fallback_audio
-                        print(f"⚠️  Using fallback silence audio: {fallback_audio}")
+                        print(f"[WARN] Using fallback silence audio: {fallback_audio}")
                     except Exception:
                         # Last resort: raise with helpful message
                         raise RuntimeError(

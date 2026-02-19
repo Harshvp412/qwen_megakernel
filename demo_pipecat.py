@@ -45,7 +45,7 @@ from pipecat_tts_service import Qwen3TTSPipecatService
 
 logger.info("Loading Silero VAD...")
 from pipecat.audio.vad.silero import SileroVADAnalyzer
-logger.info("✅ Components loaded")
+logger.info("Components loaded")
 
 
 async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):

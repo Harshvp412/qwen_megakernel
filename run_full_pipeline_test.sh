@@ -33,7 +33,7 @@ echo ""
 echo "=============================================="
 echo "5. Run Step 4 – full pipeline validation"
 echo "=============================================="
-python test_step4_pipeline.py
+python tests/test_step4_pipeline.py
 STEP4_EXIT=$?
 
 if [ $STEP4_EXIT -ne 0 ]; then

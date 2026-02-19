@@ -41,7 +41,7 @@ def compare(ref_ids: list[int], mk_ids: list[int], tokenizer) -> bool:
     all_match = True
 
     print(f"\n{'pos':>3}  {'ref_id':>7}  {'mk_id':>7}  {'ref_text':<20}  {'mk_text':<20}  match")
-    print("─" * 75)
+    print("-" * 75)
 
     for i in range(n):
         ref_tok = ref_ids[i] if i < len(ref_ids) else None
@@ -51,7 +51,7 @@ def compare(ref_ids: list[int], mk_ids: list[int], tokenizer) -> bool:
         ref_text = tokenizer.decode([ref_tok], skip_special_tokens=False) if ref_tok is not None else "—"
         mk_text  = tokenizer.decode([mk_tok],  skip_special_tokens=False) if mk_tok  is not None else "—"
 
-        flag = "✓" if match else "✗"
+        flag = "PASS" if match else "FAIL"
         if not match:
             all_match = False
 
@@ -60,7 +60,7 @@ def compare(ref_ids: list[int], mk_ids: list[int], tokenizer) -> bool:
             f"{repr(ref_text):<20}  {repr(mk_text):<20}  {flag}"
         )
 
-    print("─" * 75)
+    print("-" * 75)
     return all_match
 
 
@@ -95,7 +95,7 @@ def main(ref_path: Path, model_name: str) -> int:
 
     if model_name != ref_model:
         print(
-            f"  ⚠  --model '{model_name}' differs from reference model '{ref_model}'.\n"
+            f"  [WARN] --model '{model_name}' differs from reference model '{ref_model}'.\n"
             f"     Parity is only meaningful when both use the same checkpoint.\n"
         )
 
@@ -125,12 +125,12 @@ def main(ref_path: Path, model_name: str) -> int:
         rt = getattr(dec, "_rope_theta_used", None)
         if rt is not None and abs(float(rt) - 1000000.0) > 1.0:
             print(
-                f"\n  ⚠  RoPE theta used = {rt} (expected 1000000.0 for parity with reference).\n"
+                f"\n  [WARN] RoPE theta used = {rt} (expected 1000000.0 for parity with reference).\n"
                 "     Fix: model.py must use config.rope_scaling['rope_theta'] for this model.\n",
                 file=sys.stderr,
             )
         elif rt is not None:
-            print(f"  ✓  RoPE theta = {rt} (correct for Qwen3-0.6B parity)")
+            print(f"  [OK] RoPE theta = {rt} (correct for Qwen3-0.6B parity)")
 
     tokenizer = dec.tokenizer
 
@@ -146,7 +146,7 @@ def main(ref_path: Path, model_name: str) -> int:
 
     if prompt_ids != ref["prompt_ids"]:
         print(
-            "\n  ✗  TOKENIZER MISMATCH — prompt encodes differently.\n"
+            "\n  [FAIL] TOKENIZER MISMATCH; prompt encodes differently.\n"
             "     This will cause all tokens to diverge regardless of kernel correctness.\n"
             "     Ensure both machines use the same tokenizer checkpoint.\n"
         )
@@ -183,7 +183,7 @@ def main(ref_path: Path, model_name: str) -> int:
     print()
     if all_match:
         print("══════════════════════════════════════")
-        print("  Parity: TRUE  ✓  All tokens match")
+        print("  Parity: TRUE  (all tokens match)")
         print("══════════════════════════════════════")
         return 0
     else:
@@ -199,52 +199,52 @@ def main(ref_path: Path, model_name: str) -> int:
         ) + abs(len(ref_ids) - len(mk_ids))
         
         print("══════════════════════════════════════════════════════════")
-        print(f"  Parity: FALSE  ✗  {mismatches}/{max_tokens} token(s) differ")
+        print(f"  Parity: FALSE  ({mismatches}/{max_tokens} token(s) differ)")
         print("══════════════════════════════════════════════════════════")
         
         if first_mismatch_idx is not None:
-            print(f"\n🔍 DIAGNOSIS:")
+            print(f"\nDIAGNOSIS:")
             print(f"   First mismatch at token index: {first_mismatch_idx}")
             print(f"   Reference token[{first_mismatch_idx}]: {ref_ids[first_mismatch_idx]} ({tokenizer.decode([ref_ids[first_mismatch_idx]], skip_special_tokens=True)})")
             print(f"   Megakernel token[{first_mismatch_idx}]: {mk_ids[first_mismatch_idx]} ({tokenizer.decode([mk_ids[first_mismatch_idx]], skip_special_tokens=True)})")
             
             # Diagnose based on WHERE mismatch occurs
-            print(f"\n📊 ROOT CAUSE ANALYSIS:")
+            print(f"\nROOT CAUSE ANALYSIS:")
             if first_mismatch_idx == 0:
-                print("   ⚠️  Mismatch at token 0 (first generated token)")
-                print("   → Likely cause: RoPE application or attention Q@K computation")
-                print("   → Check: RoPE table indexing, position counter, Q/K rotation")
-                print("   → Action: Verify cos_table/sin_table are correct for each position")
+                print("   [WARN] Mismatch at token 0 (first generated token)")
+                print("   Likely cause: RoPE application or attention Q@K computation")
+                print("   Check: RoPE table indexing, position counter, Q/K rotation")
+                print("   Action: Verify cos_table/sin_table are correct for each position")
             elif first_mismatch_idx >= len(ref_ids) - 3:
-                print(f"   ⚠️  Mismatch at token {first_mismatch_idx} (near end)")
-                print("   → Likely cause: LM head projection or argmax")
-                print("   → Check: lm_head.weight dtype, shape, loading")
-                print("   → Action: Verify lm_head_weight is bf16 and matches HF state_dict")
+                print(f"   [WARN] Mismatch at token {first_mismatch_idx} (near end)")
+                print("   Likely cause: LM head projection or argmax")
+                print("   Check: lm_head.weight dtype, shape, loading")
+                print("   Action: Verify lm_head_weight is bf16 and matches HF state_dict")
             else:
                 # Check if mismatch grows over time
                 mismatch_indices = [i for i, (r, m) in enumerate(zip(ref_ids, mk_ids)) if r != m]
                 if len(mismatch_indices) > 1:
                     grows = all(mismatch_indices[i] < mismatch_indices[i+1] for i in range(len(mismatch_indices)-1))
                     if grows and len(mismatch_indices) > 3:
-                        print(f"   ⚠️  Mismatch starts at token {first_mismatch_idx}, grows over time")
-                        print("   → Likely cause: KV cache corruption or attention accumulation error")
-                        print("   → Check: KV cache write/read indexing, attention softmax stability")
-                        print("   → Action: Verify k_cache/v_cache are written at correct positions")
+                        print(f"   [WARN] Mismatch starts at token {first_mismatch_idx}, grows over time")
+                        print("   Likely cause: KV cache corruption or attention accumulation error")
+                        print("   Check: KV cache write/read indexing, attention softmax stability")
+                        print("   Action: Verify k_cache/v_cache are written at correct positions")
                     else:
-                        print(f"   ⚠️  Mismatch at token {first_mismatch_idx} (middle)")
-                        print("   → Likely cause: Attention computation or hidden state drift")
-                        print("   → Check: Attention scores, softmax, MLP output")
+                        print(f"   [WARN] Mismatch at token {first_mismatch_idx} (middle)")
+                        print("   Likely cause: Attention computation or hidden state drift")
+                        print("   Check: Attention scores, softmax, MLP output")
                 else:
-                    print(f"   ⚠️  Single mismatch at token {first_mismatch_idx}")
-                    print("   → Likely cause: Numerical precision or specific token edge case")
+                    print(f"   [WARN] Single mismatch at token {first_mismatch_idx}")
+                    print("   Likely cause: Numerical precision or specific token edge case")
             
-            print(f"\n🔧 FIX CHECKLIST:")
+            print(f"\nFIX CHECKLIST:")
             # Show RoPE theta actually used to build cos/sin tables (must be 1000000 for Qwen3-0.6B parity)
             rt_used = getattr(dec, "_rope_theta_used", None)
             if rt_used is not None:
                 print(f"   1. RoPE theta used in kernel (cos/sin tables): {rt_used}")
                 if "0.6B" in model_name and "tts" not in model_name.lower() and abs(float(rt_used) - 1000000.0) > 1.0:
-                    print(f"      ⚠️  For Qwen3-0.6B parity this must be 1000000.0 — update model.py to use config.rope_scaling or config.rope_theta")
+                    print(f"      [WARN] For Qwen3-0.6B parity this must be 1000000.0; update model.py to use config.rope_scaling or config.rope_theta")
             else:
                 try:
                     from transformers import AutoConfig
@@ -256,13 +256,13 @@ def main(ref_path: Path, model_name: str) -> int:
             expected_pos = len(prompt_ids) - 1 + max_tokens  # -1 because we prefill (len-1) tokens
             print(f"   2. Check position counter: dec.position = {dec.position} (expected: {expected_pos})")
             if dec.position != expected_pos:
-                print(f"      ⚠️  Position counter mismatch — may indicate off-by-one bug")
+                print(f"      [WARN] Position counter mismatch; may indicate off-by-one bug")
             print(f"   3. Verify KV cache shape: {dec._k_cache.shape} (expected: [28, 8, 2048, 128])")
             print(f"   4. Check hidden state: mean={dec._hidden.abs().mean().item():.6f}, std={dec._hidden.std().item():.6f}")
             if dec._hidden.abs().mean().item() < 0.001:
-                print("      ⚠️  Hidden state too small — transformer layers may be broken")
+                print("      [WARN] Hidden state too small; transformer layers may be broken")
             if dec._hidden.abs().mean().item() > 1000:
-                print("      ⚠️  Hidden state too large — numerical overflow")
+                print("      [WARN] Hidden state too large; numerical overflow")
         
         print("\nCommon causes:")
         print("  1. rope_theta mismatch  — check model.py inv_freq base")

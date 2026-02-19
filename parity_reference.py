@@ -157,63 +157,63 @@ def _check_config(config) -> dict:
 
     # tie_word_embeddings
     if checks["tied_embeddings"] is False:
-        print("  ⚠  tie_word_embeddings = False")
+        print("  [WARN]  tie_word_embeddings = False")
         print("     load_weights() must load lm_head.weight as a separate tensor.")
     else:
-        print(f"  ✓  tie_word_embeddings = {checks['tied_embeddings']}")
+        print(f"  [OK]  tie_word_embeddings = {checks['tied_embeddings']}")
         print("     Even so — lm_head.weight may exist separately (see embedding check).")
 
     # rope_theta vs effective_rope_theta
     if abs(effective_rope_theta - MK_ROPE_THETA) > 1.0:
-        print(f"  ✗  effective rope_theta = {effective_rope_theta}  "
+        print(f"  [MISMATCH]  effective rope_theta = {effective_rope_theta}  "
               f"(megakernel hardcodes {MK_ROPE_THETA})")
         print("     ACTION REQUIRED: update MK_ROPE_THETA in parity_reference.py")
         print(f"       or verify model.py reads config.rope_theta dynamically.")
     else:
-        print(f"  ✓  rope_theta = {effective_rope_theta}")
+        print(f"  [OK]  rope_theta = {effective_rope_theta}")
 
     # rope_scaling type
     rs = checks["rope_scaling"]
     if rs is not None:
         rs_type = rs.get("rope_type", "unknown") if isinstance(rs, dict) else rs
         if rs_type not in ("default", None):
-            print(f"  ⚠  rope_scaling.rope_type = '{rs_type}'")
+            print(f"  [WARN]  rope_scaling.rope_type = '{rs_type}'")
             print("     Megakernel has no position scaling — RoPE tables must be rebuilt.")
         else:
-            print(f"  ✓  rope_scaling.rope_type = '{rs_type}' (no position scaling)")
+            print(f"  [OK]  rope_scaling.rope_type = '{rs_type}' (no position scaling)")
     else:
-        print("  ✓  rope_scaling = None")
+        print("  [OK]  rope_scaling = None")
 
     # vocab_size
     if checks["vocab_size"] and checks["vocab_size"] != MK_VOCAB_SIZE:
-        print(f"  ✗  vocab_size = {checks['vocab_size']}  (megakernel = {MK_VOCAB_SIZE})")
+        print(f"  [MISMATCH]  vocab_size = {checks['vocab_size']}  (megakernel = {MK_VOCAB_SIZE})")
         print("     LDG_VOCAB_SIZE in kernel.cu and MK_VOCAB_SIZE here must be updated.")
     else:
-        print(f"  ✓  vocab_size = {checks['vocab_size']}")
+        print(f"  [OK]  vocab_size = {checks['vocab_size']}")
 
     # hidden_size
     if checks["hidden_size"] and checks["hidden_size"] != MK_HIDDEN_SIZE:
-        print(f"  ✗  hidden_size = {checks['hidden_size']}  (megakernel = {MK_HIDDEN_SIZE})")
+        print(f"  [MISMATCH]  hidden_size = {checks['hidden_size']}  (megakernel = {MK_HIDDEN_SIZE})")
     else:
-        print(f"  ✓  hidden_size = {checks['hidden_size']}")
+        print(f"  [OK]  hidden_size = {checks['hidden_size']}")
 
     # num_layers
     if checks["num_layers"] and checks["num_layers"] != MK_NUM_LAYERS:
-        print(f"  ✗  num_hidden_layers = {checks['num_layers']}  (megakernel = {MK_NUM_LAYERS})")
+        print(f"  [MISMATCH]  num_hidden_layers = {checks['num_layers']}  (megakernel = {MK_NUM_LAYERS})")
     else:
-        print(f"  ✓  num_hidden_layers = {checks['num_layers']}")
+        print(f"  [OK]  num_hidden_layers = {checks['num_layers']}")
 
     # num_kv_heads
     if checks["num_kv_heads"] and checks["num_kv_heads"] != MK_NUM_KV_HEADS:
-        print(f"  ✗  num_key_value_heads = {checks['num_kv_heads']}  (megakernel = {MK_NUM_KV_HEADS})")
+        print(f"  [MISMATCH]  num_key_value_heads = {checks['num_kv_heads']}  (megakernel = {MK_NUM_KV_HEADS})")
     else:
-        print(f"  ✓  num_key_value_heads = {checks['num_kv_heads']}")
+        print(f"  [OK]  num_key_value_heads = {checks['num_kv_heads']}")
 
     # head_dim
     if checks["head_dim"] and checks["head_dim"] != MK_HEAD_DIM:
-        print(f"  ✗  head_dim = {checks['head_dim']}  (megakernel = {MK_HEAD_DIM})")
+        print(f"  [MISMATCH]  head_dim = {checks['head_dim']}  (megakernel = {MK_HEAD_DIM})")
     else:
-        print(f"  ✓  head_dim = {checks['head_dim']}")
+        print(f"  [OK]  head_dim = {checks['head_dim']}")
 
     print("──────────────────────────────────────────────────────────────────\n")
     return checks
@@ -260,7 +260,7 @@ def _check_embeddings(model) -> dict:
 
     if not has_lm_head:
         print("  lm_head.weight  → NOT in state_dict (weight shared via embed)")
-        print("  ✓  Truly tied — load_weights() embed alias is safe here.")
+        print("  [OK]  Truly tied — load_weights() embed alias is safe here.")
         result["truly_tied"] = True
     else:
         lm = state["lm_head.weight"]
@@ -274,15 +274,15 @@ def _check_embeddings(model) -> dict:
 
             if same_ptr:
                 result["truly_tied"] = True
-                print("  ✓  Same data_ptr — tied in memory.")
+                print("  [OK]  Same data_ptr — tied in memory.")
             elif same_values:
                 result["truly_tied"] = False
-                print("  ⚠  Different data_ptr, equal values — COPIED not tied.")
+                print("  [WARN]  Different data_ptr, equal values — COPIED not tied.")
                 print("     (transformers 5.x behaviour with tie_word_embeddings=True)")
                 print("     ACTION: load_weights() must use state['lm_head.weight'] explicitly.")
             else:
                 result["truly_tied"] = False
-                print("  ✗  UNTIED — lm_head.weight differs from embed_tokens.weight.")
+                print("  [MISMATCH]  UNTIED — lm_head.weight differs from embed_tokens.weight.")
                 print("     ACTION: load_weights() must use state['lm_head.weight'] explicitly.")
 
     print("──────────────────────────────────────────────────────────────────\n")
@@ -309,7 +309,7 @@ def run(model_name: str) -> dict:
     qwen_tts_ok = _ensure_qwen_tts_registered()
     if not qwen_tts_ok:
         print(
-            "  ℹ  qwen_tts package not found.\n"
+            "  [NOTE]  qwen_tts package not found.\n"
             "     Qwen3-TTS-12Hz models need:  pip install qwen-tts\n"
             "     Qwen/Qwen3-0.6B works without it.\n"
         )
@@ -339,7 +339,7 @@ def run(model_name: str) -> dict:
 
     total_len = len(prompt_ids) + MAX_NEW_TOKENS
     if total_len > MK_MAX_SEQ_LEN:
-        print(f"  ⚠  prompt ({len(prompt_ids)}) + max_new_tokens ({MAX_NEW_TOKENS}) "
+        print(f"  [WARN]  prompt ({len(prompt_ids)}) + max_new_tokens ({MAX_NEW_TOKENS}) "
               f"= {total_len} > MK_MAX_SEQ_LEN ({MK_MAX_SEQ_LEN})")
 
     # ── Load model ───────────────────────────────────────────────────────────
