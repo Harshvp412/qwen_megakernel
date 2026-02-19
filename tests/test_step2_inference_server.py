@@ -13,6 +13,11 @@ import sys
 import time
 from pathlib import Path
 
+# Ensure repo root is on path when run as tests/test_step2_inference_server.py
+_repo_root = Path(__file__).resolve().parent.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
+
 
 def test_megakernel_decoder_streaming():
     """Test 2.1: Streaming token generation"""

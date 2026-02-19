@@ -11,6 +11,12 @@ Tests:
 import sys
 from pathlib import Path
 
+# Ensure repo root is on path when run as tests/test_step1_tts_parity.py
+_repo_root = Path(__file__).resolve().parent.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
+
+
 def test_tts_model_load():
     """Test 1.1: Can we load the TTS model?"""
     print("=" * 60)

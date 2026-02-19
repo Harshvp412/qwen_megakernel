@@ -11,6 +11,12 @@ Run: python test_step3_pipecat.py [--write-wav out.wav]
 import argparse
 import asyncio
 import sys
+from pathlib import Path
+
+# Ensure repo root is on path when run as tests/test_step3_pipecat.py
+_repo_root = Path(__file__).resolve().parent.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
 
 
 async def test_tts_service_run_tts(write_wav: str | None) -> bool:

@@ -13,6 +13,12 @@ Run on a machine with GPU + qwen-tts + megakernel built:
 import argparse
 import sys
 import time
+from pathlib import Path
+
+# Ensure repo root is on path when run as tests/test_megakernel_tts_backend.py
+_repo_root = Path(__file__).resolve().parent.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
 
 
 def main():

@@ -19,8 +19,13 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Allow imports of sibling test modules when run as tests/test_step4_pipeline.py from repo root
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Repo root must be on path so test_step2/test_step3 can import inference_server, pipecat_tts_service, etc.
+_repo_root = Path(__file__).resolve().parent.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
+# Allow imports of sibling test modules (test_step2_inference_server, test_step3_pipecat)
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
 def main():
