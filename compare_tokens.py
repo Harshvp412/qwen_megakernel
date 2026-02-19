@@ -22,6 +22,7 @@ Exit codes
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -69,14 +70,28 @@ def compare(ref_ids: list[int], mk_ids: list[int], tokenizer) -> bool:
 # ---------------------------------------------------------------------------
 
 def main(ref_path: Path, model_name: str) -> int:
-    # ── Load reference ───────────────────────────────────────────────────────
+    # ── Load or generate reference ───────────────────────────────────────────
     if not ref_path.exists():
-        print(f"[ERROR] Reference file not found: {ref_path}", file=sys.stderr)
-        print(
-            "Run parity_reference.py on the Mac first, then copy the JSON here.",
-            file=sys.stderr,
-        )
-        return 2
+        print(f"Reference file not found: {ref_path}")
+        print(f"Generating reference on this machine with: python parity_reference.py --model {model_name}")
+        script_dir = Path(__file__).resolve().parent
+        parity_script = script_dir / "parity_reference.py"
+        if not parity_script.exists():
+            print(f"[ERROR] parity_reference.py not found: {parity_script}", file=sys.stderr)
+            return 2
+        try:
+            subprocess.run(
+                [sys.executable, str(parity_script), "--model", model_name, "-o", str(ref_path)],
+                check=True,
+                cwd=str(script_dir),
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"[ERROR] Failed to generate reference: {e}", file=sys.stderr)
+            print("  Install dependencies and run: python parity_reference.py --model", model_name, file=sys.stderr)
+            return 2
+        if not ref_path.exists():
+            print(f"[ERROR] Reference file still missing after generation: {ref_path}", file=sys.stderr)
+            return 2
 
     ref = json.loads(ref_path.read_text())
     ref_ids    = ref["generated_ids"]       # 20 tokens (prompt excluded)
