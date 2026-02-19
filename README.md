@@ -53,13 +53,13 @@ python -c "import qwen_megakernel; print('Build OK')"
 
 ### 3. Run what you need
 
-| Goal | Command |
-|------|---------|
-| Decode benchmark (tok/s) | `python -m qwen_megakernel.bench` |
-| Parity check (megakernel vs HuggingFace) | `python compare_tokens.py` |
-| TTS backend test (TTFC, RTF) | `python tests/test_megakernel_tts_backend.py --first-chunk-frames 2` |
-| Full pipeline test (Steps 2–4) | `python tests/test_step4_pipeline.py` |
-| Voice demo (STT → LLM → TTS) | See [Demo script](#demo-script-voice-pipeline) below |
+| Goal                                     | Command                                                              |
+| ---------------------------------------- | -------------------------------------------------------------------- |
+| Decode benchmark (tok/s)                 | `python -m qwen_megakernel.bench`                                    |
+| Parity check (megakernel vs HuggingFace) | `python compare_tokens.py`                                           |
+| TTS backend test (TTFC, RTF)             | `python tests/test_megakernel_tts_backend.py --first-chunk-frames 2` |
+| Full pipeline test (Steps 2–4)           | `python tests/test_step4_pipeline.py`                                |
+| Voice demo (STT → LLM → TTS)             | See [Demo script](#demo-script-voice-pipeline) below                 |
 
 Regenerate the parity reference on this machine if needed:
 
@@ -87,13 +87,6 @@ qwen_megakernel/
 ├── requirements.txt
 ├── run_demo.sh                  # Voice demo (requires API keys)
 ├── run_full_pipeline_test.sh    # Install + build + run pipeline test
-│
-├── docs/                        # Documentation
-│   ├── ASSIGNMENT_CHECKLIST.md  # Requirement-by-requirement status
-│   ├── DEBUG_PARITY.md
-│   ├── MEGAKERNEL_INTEGRATION_STATUS.md
-│   ├── MEGAKERNEL_TTS_INTEGRATION_PLAN.md
-│   └── TTS_INTEGRATION_PLAN.md
 │
 ├── qwen_megakernel/             # Megakernel Python package
 │   ├── __init__.py
@@ -141,24 +134,25 @@ qwen_megakernel/
 
 ## Assignment alignment and performance
 
-Requirement-level status is in **[docs/ASSIGNMENT_CHECKLIST.md](docs/ASSIGNMENT_CHECKLIST.md)**. Summary:
+Summary:
 
-| Requirement | Status |
-|-------------|--------|
-| Megakernel as Qwen3-TTS talker decoder | Done. MegakernelTalkerBackend: megakernel → codec tokens → codec/vocoder → audio. |
-| Streaming (push audio as decoded) | Done. Chunked decode (2 frames first, then 12); no full-utterance buffer. |
-| TTFC < 90 ms | Met. ~87 ms with `--first-chunk-frames 2`. |
-| RTF < 0.3 | Met. ~0.06 in testing. |
-| Decoded tokens match HF reference | Met on same machine (see `compare_hf_generate_vs_mk.py`). Regenerate `parity_reference_output.json` on target machine for `compare_tokens.py`. |
+| Requirement                            | Status                                                                                                                                         |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Megakernel as Qwen3-TTS talker decoder | Done. MegakernelTalkerBackend: megakernel → codec tokens → codec/vocoder → audio.                                                              |
+| Streaming (push audio as decoded)      | Done. Chunked decode (2 frames first, then 12); no full-utterance buffer.                                                                      |
+| TTFC < 90 ms                           | Met. ~87 ms with `--first-chunk-frames 2`.                                                                                                     |
+| RTF < 0.3                              | Met. ~0.06 in testing.                                                                                                                         |
+| Decoded tokens match HF reference      | Met on same machine (see `compare_hf_generate_vs_mk.py`). Regenerate `parity_reference_output.json` on target machine for `compare_tokens.py`. |
 
-### Performance numbers
+### Performance numbers (assignment: decode tok/s, TTFC, RTF, end-to-end)
 
-| Metric | Value |
-|--------|--------|
-| Megakernel decode | ~740–1000+ tok/s (see `python -m qwen_megakernel.bench`) |
-| TTFC (time to first chunk) | ~87 ms (excludes model load; use `--first-chunk-frames 2`) |
-| RTF (real-time factor) | ~0.06 (MegakernelTalkerBackend) |
-| PyTorch (HF) baseline | ~123 tok/s (from blog/reference) |
+| Metric                         | Value                                                                                                                                                                                              | Assignment target |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| **Decode tok/s**               | ~740–1000+ (run `python -m qwen_megakernel.bench`)                                                                                                                                                 | Reference ~1000   |
+| **TTFC** (time to first chunk) | ~87 ms (excludes model load; use `--first-chunk-frames 2`)                                                                                                                                         | < 90 ms           |
+| **RTF** (real-time factor)     | ~0.06 (MegakernelTalkerBackend)                                                                                                                                                                    | < 0.3             |
+| **End-to-end latency**         | Dominated by TTS generation; first audio after ~87 ms from request start (after model load). Full round-trip (STT → LLM → TTS → first chunk) depends on network and LLM; TTS contribution is TTFC. | —                 |
+| PyTorch (HF) baseline          | ~123 tok/s (from blog)                                                                                                                                                                             | —                 |
 
 To reproduce TTFC/RTF:
 
