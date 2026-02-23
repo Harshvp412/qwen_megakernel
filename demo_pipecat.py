@@ -66,8 +66,10 @@ def _create_stt():
     """Create STT: Whisper (free) or Deepgram (API key)."""
     if USE_FREE_MODELS:
         try:
-            from pipecat.services.whisper import WhisperSTTService
-            return WhisperSTTService(model="base", device="cuda" if __import__("torch").cuda.is_available() else "cpu")
+            from pipecat.services.whisper.stt import WhisperSTTService
+            model = os.getenv("WHISPER_MODEL", "base")  # tiny, base, small; tiny downloads faster
+            device = "cuda" if __import__("torch").cuda.is_available() else "cpu"
+            return WhisperSTTService(model=model, device=device)
         except ImportError:
             raise RuntimeError(
                 "USE_FREE_MODELS=1 requires: pip install \"pipecat-ai[whisper]\""
@@ -83,7 +85,7 @@ def _create_llm():
     """Create LLM: Ollama (free) or OpenAI (API key)."""
     if USE_FREE_MODELS:
         try:
-            from pipecat.services.ollama import OLLamaLLMService
+            from pipecat.services.ollama.llm import OLLamaLLMService
             return OLLamaLLMService(model=os.getenv("OLLAMA_MODEL", "llama2"))
         except ImportError:
             raise RuntimeError(

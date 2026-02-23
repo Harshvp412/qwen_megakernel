@@ -62,10 +62,11 @@ class Qwen3TTSPipecatService(TTSService):
         if os.environ.get("USE_LEGACY_TTS", "").strip().lower() in ("1", "true", "yes"):
             try:
                 from inference_server import Qwen3TTSTalkerBackend
-                return Qwen3TTSTalkerBackend()
+                # use_megakernel_decoder=False: only load HF TTS model (works on Mac / when CUDA megakernel unavailable)
+                return Qwen3TTSTalkerBackend(use_megakernel_decoder=False)
             except Exception as e:
                 raise RuntimeError(
-                    "USE_LEGACY_TTS=1 but Qwen3TTSTalkerBackend failed. Install qwen-tts."
+                    f"USE_LEGACY_TTS=1 but Qwen3TTSTalkerBackend failed: {e}. Install qwen-tts and ensure dependencies (e.g. sox for audio)."
                 ) from e
         # Prefer megakernel-as-talker backend (full compliance: megakernel → codec → audio).
         try:

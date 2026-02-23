@@ -13,7 +13,7 @@ Single-kernel decode for Qwen3-0.6B (bfloat16) on **NVIDIA RTX 5090**: all 28 tr
 2. [Quick start (run the code)](#quick-start-run-the-code)
 3. [How to work with the codebase](#how-to-work-with-the-codebase)
 4. [Assignment alignment and performance](#assignment-alignment-and-performance)
-5. [Demo script (voice pipeline)](#demo-script-voice-pipeline)
+5. [Demo script (voice pipeline)](#demo-script-voice-pipeline) — with API keys or [Ollama + Whisper](#run-without-api-keys-ollama--whisper) (no keys)
 6. [Optional: parity, TTS, and kernel notes](#optional-parity-tts-and-kernel-notes)
 
 ---
@@ -168,14 +168,49 @@ To tune first-chunk size (if codec latency varies): run `python profile_codec_de
 
 ## Demo script (voice pipeline)
 
-The **voice demo** runs a full pipeline: STT (Deepgram) → LLM (OpenAI) → TTS (our megakernel-backed Qwen3-TTS) → audio out.
+The **voice demo** runs a full pipeline: **STT → LLM → TTS** → audio out. You can use either **API keys** (Deepgram + OpenAI) or **no keys** (Whisper + Ollama) for STT and LLM; TTS is always our megakernel-backed Qwen3-TTS.
 
 ### Prerequisites
 
-- API keys: `DEEPGRAM_API_KEY`, `OPENAI_API_KEY`
 - Installed: `qwen-tts`, `websockets`, `pipecat-ai`. Optional: `python-dotenv` and a `.env` file for keys.
+- **With API keys:** set `DEEPGRAM_API_KEY` and `OPENAI_API_KEY` for Deepgram STT and OpenAI LLM.
+- **Without API keys:** use Whisper (STT) and Ollama (LLM) — see [Run without API keys (Ollama + Whisper)](#run-without-api-keys-ollama--whisper) below.
 
-### Run the demo
+### Run without API keys (Ollama + Whisper)
+
+You can test the pipeline end-to-end from **mic to speaker** with no OpenAI or Deepgram keys: the demo uses **Whisper** for speech-to-text and **Ollama** for the LLM.
+
+1. **Install Pipecat extras for Whisper and Ollama:**
+
+   ```bash
+   pip install "pipecat-ai[whisper]" "pipecat-ai[ollama]"
+   ```
+
+2. **Install and start Ollama** (see [ollama.com](https://ollama.com)), then pull a model in a separate terminal:
+
+   ```bash
+   ollama serve    # leave this running
+   ollama pull llama2
+   ```
+
+3. **Run the demo** (no API keys needed; it will use Whisper + Ollama automatically):
+
+   ```bash
+   python demo_pipecat.py -t webrtc
+   ```
+
+   Or use the recording script (saves the conversation to `recordings/` on disconnect):
+
+   ```bash
+   chmod +x run_demo_with_record.sh
+   ./run_demo_with_record.sh
+   ```
+
+4. **Open the printed URL** (e.g. `http://localhost:7860/client`) in a **browser**, allow microphone access, and speak. You’ll hear the reply from your speaker (mic → STT → LLM → TTS → audio out).
+
+**Optional:** Copy `.env.example` to `.env` and set `WHISPER_MODEL=tiny` (or `base`/`small`) and `OLLAMA_MODEL=llama2` (or another model) if you want to change defaults. If the megakernel TTS hits a CUDA error on your machine, run with `USE_LEGACY_TTS=1` so the pipeline still works (HF-based TTS).
+
+### Run the demo (with API keys)
 
 ```bash
 pip install qwen-tts websockets pipecat-ai python-dotenv
@@ -213,8 +248,8 @@ The script prints a URL (e.g. for a WebRTC client). Connect and speak; the pipel
 
 ### What the demo does
 
-- **STT:** Deepgram turns microphone input into text.
-- **LLM:** OpenAI produces a short reply.
+- **STT:** Deepgram (with API key) or **Whisper** (no key) turns microphone input into text.
+- **LLM:** OpenAI (with API key) or **Ollama** (no key; run `ollama serve` and pull a model) produces a short reply.
 - **TTS:** `Qwen3TTSPipecatService` uses `MegakernelTalkerBackend`: megakernel generates codec tokens, Qwen3-TTS codec/vocoder produces audio; audio is streamed to the client in chunks.
 
 ---

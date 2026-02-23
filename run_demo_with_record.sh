@@ -28,6 +28,9 @@ if [ -z "$DEEPGRAM_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
   echo "           ollama pull llama2"
   echo ""
   export USE_FREE_MODELS=1
+  # GPU-friendly defaults: tiny downloads faster on first run; override with .env or WHISPER_MODEL=base
+  export WHISPER_MODEL=${WHISPER_MODEL:-tiny}
+  export OLLAMA_MODEL=${OLLAMA_MODEL:-llama2}
 fi
 
 export RECORD_DEMO=1
