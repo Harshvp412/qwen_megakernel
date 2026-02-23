@@ -37,6 +37,9 @@ export RECORD_DEMO=1
 echo "Voice demo with recording (RECORD_DEMO=1)."
 echo "  - Use WebRTC so you get a LOCAL URL (no Daily account)."
 echo "  - Open the URL in your browser (e.g. http://localhost:7860/client), allow mic, speak."
+if [ -n "$PORT" ]; then
+  echo "  - Using port $PORT (PORT=$PORT). On a remote server, SSH with: -L ${PORT}:localhost:${PORT}"
+fi
 echo "  - You hear the bot from your speaker. When done, disconnect."
 echo "  - Recording saved to recordings/demo_YYYYMMDD_HHMMSS.wav"
 echo ""

@@ -224,5 +224,10 @@ async def bot(runner_args: RunnerArguments):
 
 
 if __name__ == "__main__":
+    import sys
+    # Allow PORT=8080 for SSH tunneling (e.g. ssh -L 8080:localhost:8080 user@server)
+    port = os.environ.get("PORT")
+    if port and "--port" not in sys.argv:
+        sys.argv.extend(["--port", str(port)])
     from pipecat.runner.run import main
     main()
