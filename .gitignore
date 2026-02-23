@@ -43,3 +43,6 @@ Thumbs.db
 # Assignment submission: exclude internal/dev artifacts
 scripts/
 .env
+
+# Demo recordings (optional; keep repo small)
+recordings/
