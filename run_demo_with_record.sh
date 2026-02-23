@@ -46,4 +46,5 @@ fi
 echo ""
 
 # -t webrtc = local URL, use laptop mic and speaker in browser
-exec python demo_pipecat.py -t webrtc "$@"
+PYTHON=$(command -v python3 2>/dev/null || command -v python 2>/dev/null)
+exec "$PYTHON" demo_pipecat.py -t webrtc "$@"

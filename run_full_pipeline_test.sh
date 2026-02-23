@@ -27,13 +27,14 @@ echo ""
 echo "=============================================="
 echo "4. Build CUDA kernel (first run may take 1–2 min)"
 echo "=============================================="
-python -c "import qwen_megakernel; print('Build OK')"
+PYTHON=$(command -v python3 2>/dev/null || command -v python 2>/dev/null)
+"$PYTHON" -c "import qwen_megakernel; print('Build OK')"
 
 echo ""
 echo "=============================================="
 echo "5. Run Step 4 – full pipeline validation"
 echo "=============================================="
-python tests/test_step4_pipeline.py
+"$PYTHON" tests/test_step4_pipeline.py
 STEP4_EXIT=$?
 
 if [ $STEP4_EXIT -ne 0 ]; then
@@ -49,10 +50,10 @@ echo "=============================================="
 echo "6. Optional: voice demo (needs API keys)"
 echo "=============================================="
 if [ -n "${DEEPGRAM_API_KEY}" ] && [ -n "${OPENAI_API_KEY}" ]; then
-  echo "API keys set. Start demo with: python demo_pipecat.py"
+  echo "API keys set. Start demo with: $PYTHON demo_pipecat.py"
   echo "Then open the printed URL in a browser and connect."
 else
-  echo "Set DEEPGRAM_API_KEY and OPENAI_API_KEY to run: python demo_pipecat.py"
+  echo "Set DEEPGRAM_API_KEY and OPENAI_API_KEY to run: $PYTHON demo_pipecat.py"
 fi
 
 echo ""

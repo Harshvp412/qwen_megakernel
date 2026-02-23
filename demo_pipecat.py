@@ -44,7 +44,6 @@ from pipecat.processors.aggregators.llm_response_universal import (
 from pipecat.runner.types import RunnerArguments
 from pipecat.runner.utils import create_transport
 from pipecat.transports.base_transport import BaseTransport, TransportParams
-from pipecat.transports.daily.transport import DailyParams
 
 from pipecat_tts_service import Qwen3TTSPipecatService
 
@@ -203,12 +202,18 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
     await runner.run(task)
 
 
+def _get_daily_params():
+    """Lazy import so Daily SDK is only required when using -t daily."""
+    from pipecat.transports.daily.transport import DailyParams
+    return DailyParams(
+        audio_in_enabled=True,
+        audio_out_enabled=True,
+    )
+
+
 async def bot(runner_args: RunnerArguments):
     transport_params = {
-        "daily": lambda: DailyParams(
-            audio_in_enabled=True,
-            audio_out_enabled=True,
-        ),
+        "daily": _get_daily_params,
         "webrtc": lambda: TransportParams(
             audio_in_enabled=True,
             audio_out_enabled=True,

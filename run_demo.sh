@@ -15,4 +15,5 @@ fi
 echo "Starting voice demo (STT=Deepgram, LLM=OpenAI, TTS=Qwen3-TTS)..."
 echo "Open the URL in your browser and allow mic to speak; you'll hear the reply from your speaker."
 # Default to webrtc so you get a local URL (laptop mic + speaker)
-exec python demo_pipecat.py -t webrtc "$@"
+PYTHON=$(command -v python3 2>/dev/null || command -v python 2>/dev/null)
+exec "$PYTHON" demo_pipecat.py -t webrtc "$@"
