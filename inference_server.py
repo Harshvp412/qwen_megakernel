@@ -147,10 +147,15 @@ class Qwen3TTSTalkerBackend:
         self,
         decoder: Optional[MegakernelDecoder] = None,
         tts_model_name: str = "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+        use_megakernel_decoder: bool = True,
     ) -> None:
-        self._decoder = decoder or MegakernelDecoder(
-            model_name="Qwen/Qwen3-0.6B", verbose=False
-        )
+        # When USE_LEGACY_TTS=1 (e.g. on Mac or when megakernel TTS has CUDA issues), skip loading the megakernel; TTS uses only the HF model.
+        if use_megakernel_decoder and decoder is None:
+            self._decoder = MegakernelDecoder(
+                model_name="Qwen/Qwen3-0.6B", verbose=False
+            )
+        else:
+            self._decoder = decoder
 
         # Lazily load qwen-tts so that local CPU installs without TTS still work.
         try:
@@ -161,11 +166,25 @@ class Qwen3TTSTalkerBackend:
                 "to enable full TTS integration."
             )
 
+        # NOTE:
+        # - Some environments (certain torch + accelerate combos) hit
+        #   "Cannot copy out of meta tensor; no data!" when loading with
+        #   device_map="cuda:0". This comes from HF's meta-init path.
+        # - To avoid that, load on CPU first (no device_map/meta), then
+        #   move the model to the target device explicitly.
+        if torch.cuda.is_available():
+            base_dtype = torch.bfloat16
+            device = "cuda"
+        else:
+            base_dtype = torch.float32
+            device = "cpu"
+
         self._tts_model = Qwen3TTSModel.from_pretrained(
             tts_model_name,
-            device_map="cuda:0" if torch.cuda.is_available() else "cpu",
-            dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+            torch_dtype=base_dtype,
         )
+        # Move to final device after full load to avoid meta tensors.
+        self._tts_model.to(device)
 
     def text_to_speech_blocks(
         self,
